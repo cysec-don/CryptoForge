@@ -1,0 +1,716 @@
+     1→'use client';
+     2→
+     3→import { useState, useEffect, useCallback } from 'react';
+     4→import { motion } from 'framer-motion';
+     5→import {
+     6→  Hash,
+     7→  Lock,
+     8→  Unlock,
+     9→  ShieldCheck,
+    10→  Search,
+    11→  KeyRound,
+    12→  GraduationCap,
+    13→  Code2,
+    14→  Copy,
+    15→  Check,
+    16→  ArrowRight,
+    17→  Zap,
+    18→  Shield,
+    19→  Globe,
+    20→} from 'lucide-react';
+    21→import { Button } from '@/components/ui/button';
+    22→import { Card, CardContent } from '@/components/ui/card';
+    23→import { Input } from '@/components/ui/input';
+    24→import {
+    25→  Select,
+    26→  SelectContent,
+    27→  SelectItem,
+    28→  SelectTrigger,
+    29→  SelectValue,
+    30→} from '@/components/ui/select';
+    31→import { computeHash } from '@/lib/crypto';
+    32→
+    33→interface DashboardProps {
+    34→  onNavigate: (page: string) => void;
+    35→}
+    36→
+    37→/* ------------------------------------------------------------------ */
+    38→/*  Animated counter hook                                              */
+    39→/* ------------------------------------------------------------------ */
+    40→function useAnimatedCounter(target: number, duration = 2000) {
+    41→  const [count, setCount] = useState(0);
+    42→
+    43→  useEffect(() => {
+    44→    let startTime: number | null = null;
+    45→    let rafId: number;
+    46→
+    47→    const step = (timestamp: number) => {
+    48→      if (!startTime) startTime = timestamp;
+    49→      const progress = Math.min((timestamp - startTime) / duration, 1);
+    50→      // ease-out cubic
+    51→      const eased = 1 - Math.pow(1 - progress, 3);
+    52→      setCount(Math.floor(eased * target));
+    53→      if (progress < 1) {
+    54→        rafId = requestAnimationFrame(step);
+    55→      }
+    56→    };
+    57→
+    58→    rafId = requestAnimationFrame(step);
+    59→    return () => cancelAnimationFrame(rafId);
+    60→  }, [target, duration]);
+    61→
+    62→  return count;
+    63→}
+    64→
+    65→/* ------------------------------------------------------------------ */
+    66→/*  Counter Card                                                       */
+    67→/* ------------------------------------------------------------------ */
+    68→function CounterCard({
+    69→  label,
+    70→  value,
+    71→  suffix,
+    72→  icon: Icon,
+    73→  color,
+    74→  delay,
+    75→}: {
+    76→  label: string;
+    77→  value: number;
+    78→  suffix: string;
+    79→  icon: React.ElementType;
+    80→  color: string;
+    81→  delay: number;
+    82→}) {
+    83→  const count = useAnimatedCounter(value);
+    84→
+    85→  return (
+    86→    <motion.div
+    87→      initial={{ opacity: 0, y: 30 }}
+    88→      whileInView={{ opacity: 1, y: 0 }}
+    89→      viewport={{ once: true, margin: '-40px' }}
+    90→      transition={{ duration: 0.5, delay }}
+    91→      className="glass-card rounded-xl p-6 text-center group hover:scale-[1.03] transition-transform duration-300"
+    92→    >
+    93→      <div
+    94→        className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-lg"
+    95→        style={{ backgroundColor: `${color}15` }}
+    96→      >
+    97→        <Icon className="h-6 w-6" style={{ color }} />
+    98→      </div>
+    99→      <div className="text-3xl font-bold text-foreground">
+   100→        {count}
+   101→        <span className="text-lg" style={{ color }}>
+   102→          {suffix}
+   103→        </span>
+   104→      </div>
+   105→      <div className="mt-1 text-sm text-muted-foreground">{label}</div>
+   106→    </motion.div>
+   107→  );
+   108→}
+   109→
+   110→/* ------------------------------------------------------------------ */
+   111→/*  Feature card                                                       */
+   112→/* ------------------------------------------------------------------ */
+   113→const features = [
+   114→  {
+   115→    icon: Hash,
+   116→    title: 'Hash Generation',
+   117→    description: 'Generate cryptographic hashes using 50+ algorithms including SHA-2, SHA-3, MD5, and RIPEMD.',
+   118→    page: 'hash',
+   119→    color: '#2563EB',
+   120→  },
+   121→  {
+   122→    icon: Lock,
+   123→    title: 'Encryption',
+   124→    description: 'Encrypt data with AES, TripleDES, Rabbit, and other symmetric ciphers securely.',
+   125→    page: 'encryption',
+   126→    color: '#06B6D4',
+   127→  },
+   128→  {
+   129→    icon: Unlock,
+   130→    title: 'Decryption',
+   131→    description: 'Decrypt cipher text back to plaintext with support for multiple encryption standards.',
+   132→    page: 'decryption',
+   133→    color: '#10B981',
+   134→  },
+   135→  {
+   136→    icon: ShieldCheck,
+   137→    title: 'Hash Verification',
+   138→    description: 'Verify file and text integrity by comparing computed hashes against known values.',
+   139→    page: 'verify',
+   140→    color: '#F59E0B',
+   141→  },
+   142→  {
+   143→    icon: Search,
+   144→    title: 'Algorithm Identification',
+   145→    description: 'Identify which algorithm produced a given hash through pattern analysis and length detection.',
+   146→    page: 'identify',
+   147→    color: '#EF4444',
+   148→  },
+   149→  {
+   150→    icon: KeyRound,
+   151→    title: 'Secure Key Generation',
+   152→    description: 'Generate cryptographically secure random keys and passphrases for your applications.',
+   153→    page: 'keygen',
+   154→    color: '#8B5CF6',
+   155→  },
+   156→  {
+   157→    icon: GraduationCap,
+   158→    title: 'Educational Lab',
+   159→    description: 'Learn cryptography fundamentals with interactive examples and visual demonstrations.',
+   160→    page: 'learn',
+   161→    color: '#EC4899',
+   162→  },
+   163→  {
+   164→    icon: Code2,
+   165→    title: 'API Access',
+   166→    description: 'Programmatic access to all cryptographic operations via a clean RESTful API.',
+   167→    page: 'api',
+   168→    color: '#14B8A6',
+   169→  },
+   170→];
+   171→
+   172→/* ------------------------------------------------------------------ */
+   173→/*  Live demo algorithm options                                        */
+   174→/* ------------------------------------------------------------------ */
+   175→const DEMO_ALGORITHMS = [
+   176→  'SHA256',
+   177→  'SHA512',
+   178→  'SHA384',
+   179→  'SHA224',
+   180→  'SHA1',
+   181→  'MD5',
+   182→  'SHA3-256',
+   183→  'SHA3-512',
+   184→  'RIPEMD160',
+   185→  'Whirlpool',
+   186→];
+   187→
+   188→/* ================================================================== */
+   189→/*  DASHBOARD COMPONENT                                                */
+   190→/* ================================================================== */
+   191→export function Dashboard({ onNavigate }: DashboardProps) {
+   192→  /* ---- Live Demo state ---- */
+   193→  const [demoInput, setDemoInput] = useState('CryptoForge');
+   194→  const [demoAlgo, setDemoAlgo] = useState('SHA256');
+   195→  const [demoResult, setDemoResult] = useState(() =>
+   196→    computeHash('SHA256', 'CryptoForge')
+   197→  );
+   198→  const [copied, setCopied] = useState(false);
+   199→  const [isGenerating, setIsGenerating] = useState(false);
+   200→
+   201→  const handleGenerate = useCallback(() => {
+   202→    if (!demoInput.trim()) return;
+   203→    setIsGenerating(true);
+   204→    // Tiny delay for visual feedback
+   205→    setTimeout(() => {
+   206→      const result = computeHash(demoAlgo, demoInput);
+   207→      setDemoResult(result);
+   208→      setIsGenerating(false);
+   209→    }, 300);
+   210→  }, [demoAlgo, demoInput]);
+   211→
+   212→  const handleCopy = useCallback(async () => {
+   213→    if (!demoResult) return;
+   214→    try {
+   215→      await navigator.clipboard.writeText(demoResult);
+   216→      setCopied(true);
+   217→      setTimeout(() => setCopied(false), 2000);
+   218→    } catch {
+   219→      // fallback
+   220→      const textarea = document.createElement('textarea');
+   221→      textarea.value = demoResult;
+   222→      document.body.appendChild(textarea);
+   223→      textarea.select();
+   224→      document.execCommand('copy');
+   225→      document.body.removeChild(textarea);
+   226→      setCopied(true);
+   227→      setTimeout(() => setCopied(false), 2000);
+   228→    }
+   229→  }, [demoResult]);
+   230→
+   231→  /* ---- Animation variants ---- */
+   232→  const containerVariants = {
+   233→    hidden: {},
+   234→    visible: {
+   235→      transition: { staggerChildren: 0.08 },
+   236→    },
+   237→  };
+   238→
+   239→  const cardVariants = {
+   240→    hidden: { opacity: 0, y: 40 },
+   241→    visible: {
+   242→      opacity: 1,
+   243→      y: 0,
+   244→      transition: { duration: 0.5, ease: 'easeOut' },
+   245→    },
+   246→  };
+   247→
+   248→  /* ================================================================ */
+   249→  /*  RENDER                                                          */
+   250→  /* ================================================================ */
+   251→  return (
+   252→    <div className="min-h-screen bg-[#0a0e1a] text-foreground overflow-x-hidden">
+   253→      {/* ============================================================ */}
+   254→      {/*  HERO SECTION                                                 */}
+   255→      {/* ============================================================ */}
+   256→      <section className="relative min-h-screen flex items-center justify-center overflow-hidden">
+   257→        {/* Animated grid background */}
+   258→        <div className="absolute inset-0 hero-grid" />
+   259→        {/* Radial gradient overlay */}
+   260→        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(37,99,235,0.08)_0%,transparent_70%)]" />
+   261→        {/* Top-right glow */}
+   262→        <div className="absolute -top-40 right-0 h-[500px] w-[500px] rounded-full bg-[#2563EB]/5 blur-[120px]" />
+   263→        {/* Bottom-left glow */}
+   264→        <div className="absolute -bottom-40 left-0 h-[500px] w-[500px] rounded-full bg-[#06B6D4]/5 blur-[120px]" />
+   265→
+   266→        <div className="relative z-10 mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-20">
+   267→          <div className="flex flex-col items-center text-center">
+   268→            {/* Badge */}
+   269→            <motion.div
+   270→              initial={{ opacity: 0, y: 20 }}
+   271→              animate={{ opacity: 1, y: 0 }}
+   272→              transition={{ duration: 0.5 }}
+   273→              className="glass-card mb-8 inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm"
+   274→            >
+   275→              <Zap className="h-4 w-4 text-cf-cyan" />
+   276→              <span className="text-muted-foreground">
+   277→                Enterprise-Grade Cryptography Platform
+   278→              </span>
+   279→            </motion.div>
+   280→
+   281→            {/* Headline */}
+   282→            <motion.h1
+   283→              initial={{ opacity: 0, y: 20 }}
+   284→              animate={{ opacity: 1, y: 0 }}
+   285→              transition={{ duration: 0.6, delay: 0.1 }}
+   286→              className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-extrabold tracking-tight leading-tight"
+   287→            >
+   288→              <span className="gradient-text">Enterprise</span>
+   289→              <br />
+   290→              <span className="text-foreground">Cryptography Laboratory</span>
+   291→            </motion.h1>
+   292→
+   293→            {/* Subheadline */}
+   294→            <motion.p
+   295→              initial={{ opacity: 0, y: 20 }}
+   296→              animate={{ opacity: 1, y: 0 }}
+   297→              transition={{ duration: 0.6, delay: 0.2 }}
+   298→              className="mt-6 max-w-2xl text-lg sm:text-xl text-muted-foreground leading-relaxed"
+   299→            >
+   300→              Generate, verify, encrypt, decrypt, and analyze cryptographic
+   301→              algorithms from a single platform.
+   302→            </motion.p>
+   303→
+   304→            {/* CTA Buttons */}
+   305→            <motion.div
+   306→              initial={{ opacity: 0, y: 20 }}
+   307→              animate={{ opacity: 1, y: 0 }}
+   308→              transition={{ duration: 0.6, delay: 0.3 }}
+   309→              className="mt-10 flex flex-col sm:flex-row items-center gap-4"
+   310→            >
+   311→              <Button
+   312→                size="lg"
+   313→                className="bg-[#2563EB] hover:bg-[#2563EB]/90 text-white rounded-lg px-8 h-12 text-base shadow-lg shadow-[#2563EB]/20"
+   314→                onClick={() => onNavigate('hash')}
+   315→              >
+   316→                Get Started
+   317→                <ArrowRight className="ml-2 h-5 w-5" />
+   318→              </Button>
+   319→              <Button
+   320→                variant="outline"
+   321→                size="lg"
+   322→                className="glass-card border-white/10 text-foreground hover:bg-white/5 rounded-lg px-8 h-12 text-base"
+   323→                onClick={() => onNavigate('learn')}
+   324→              >
+   325→                View Algorithms
+   326→              </Button>
+   327→            </motion.div>
+   328→
+   329→            {/* Floating glassmorphism stat cards */}
+   330→            <motion.div
+   331→              initial={{ opacity: 0, y: 40 }}
+   332→              animate={{ opacity: 1, y: 0 }}
+   333→              transition={{ duration: 0.8, delay: 0.5 }}
+   334→              className="mt-16 grid w-full max-w-3xl grid-cols-1 sm:grid-cols-3 gap-4"
+   335→            >
+   336→              {[
+   337→                {
+   338→                  icon: Shield,
+   339→                  label: 'AES-256',
+   340→                  sub: 'Encryption',
+   341→                  color: '#2563EB',
+   342→                },
+   343→                {
+   344→                  icon: Hash,
+   345→                  label: 'SHA-3',
+   346→                  sub: 'Hashing',
+   347→                  color: '#06B6D4',
+   348→                },
+   349→                {
+   350→                  icon: Globe,
+   351→                  label: 'REST API',
+   352→                  sub: 'Access',
+   353→                  color: '#10B981',
+   354→                },
+   355→              ].map((card) => (
+   356→                <div
+   357→                  key={card.label}
+   358→                  className="glass-card rounded-xl p-5 flex items-center gap-4 group hover:scale-[1.03] transition-transform duration-300"
+   359→                >
+   360→                  <div
+   361→                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg"
+   362→                    style={{ backgroundColor: `${card.color}15` }}
+   363→                  >
+   364→                    <card.icon className="h-5 w-5" style={{ color: card.color }} />
+   365→                  </div>
+   366→                  <div className="text-left">
+   367→                    <div className="font-semibold text-foreground text-sm">
+   368→                      {card.label}
+   369→                    </div>
+   370→                    <div className="text-xs text-muted-foreground">
+   371→                      {card.sub}
+   372→                    </div>
+   373→                  </div>
+   374→                </div>
+   375→              ))}
+   376→            </motion.div>
+   377→          </div>
+   378→        </div>
+   379→
+   380→        {/* Bottom fade */}
+   381→        <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-[#0a0e1a] to-transparent" />
+   382→      </section>
+   383→
+   384→      {/* ============================================================ */}
+   385→      {/*  ALGORITHM COUNTERS SECTION                                   */}
+   386→      {/* ============================================================ */}
+   387→      <section className="relative py-20">
+   388→        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+   389→          <motion.div
+   390→            initial={{ opacity: 0, y: 20 }}
+   391→            whileInView={{ opacity: 1, y: 0 }}
+   392→            viewport={{ once: true }}
+   393→            transition={{ duration: 0.5 }}
+   394→            className="text-center mb-12"
+   395→          >
+   396→            <h2 className="text-3xl sm:text-4xl font-bold text-foreground">
+   397→              Comprehensive Algorithm Coverage
+   398→            </h2>
+   399→            <p className="mt-4 text-muted-foreground max-w-xl mx-auto">
+   400→              Supporting over 200 cryptographic primitives across every major
+   401→              category of modern cryptography.
+   402→            </p>
+   403→          </motion.div>
+   404→
+   405→          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 sm:gap-6">
+   406→            <CounterCard
+   407→              label="Total Algorithms"
+   408→              value={200}
+   409→              suffix="+"
+   410→              icon={Zap}
+   411→              color="#2563EB"
+   412→              delay={0}
+   413→            />
+   414→            <CounterCard
+   415→              label="Encryption Algos"
+   416→              value={25}
+   417→              suffix="+"
+   418→              icon={Lock}
+   419→              color="#06B6D4"
+   420→              delay={0.1}
+   421→            />
+   422→            <CounterCard
+   423→              label="Hash Algorithms"
+   424→              value={50}
+   425→              suffix="+"
+   426→              icon={Hash}
+   427→              color="#10B981"
+   428→              delay={0.2}
+   429→            />
+   430→            <CounterCard
+   431→              label="HMAC Algorithms"
+   432→              value={15}
+   433→              suffix="+"
+   434→              icon={Shield}
+   435→              color="#F59E0B"
+   436→              delay={0.3}
+   437→            />
+   438→            <CounterCard
+   439→              label="Encoding Formats"
+   440→              value={15}
+   441→              suffix="+"
+   442→              icon={Globe}
+   443→              color="#8B5CF6"
+   444→              delay={0.4}
+   445→            />
+   446→          </div>
+   447→        </div>
+   448→      </section>
+   449→
+   450→      {/* ============================================================ */}
+   451→      {/*  FEATURES GRID                                                */}
+   452→      {/* ============================================================ */}
+   453→      <section className="relative py-20">
+   454→        {/* Background accent */}
+   455→        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(6,182,212,0.04)_0%,transparent_50%)]" />
+   456→
+   457→        <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+   458→          <motion.div
+   459→            initial={{ opacity: 0, y: 20 }}
+   460→            whileInView={{ opacity: 1, y: 0 }}
+   461→            viewport={{ once: true }}
+   462→            transition={{ duration: 0.5 }}
+   463→            className="text-center mb-14"
+   464→          >
+   465→            <h2 className="text-3xl sm:text-4xl font-bold text-foreground">
+   466→              Everything You Need for{' '}
+   467→              <span className="gradient-text">Cryptographic Operations</span>
+   468→            </h2>
+   469→            <p className="mt-4 text-muted-foreground max-w-2xl mx-auto">
+   470→              From generating hashes to encrypting sensitive data, CryptoForge
+   471→              provides a full suite of enterprise-grade tools.
+   472→            </p>
+   473→          </motion.div>
+   474→
+   475→          <motion.div
+   476→            variants={containerVariants}
+   477→            initial="hidden"
+   478→            whileInView="visible"
+   479→            viewport={{ once: true, margin: '-60px' }}
+   480→            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 sm:gap-6"
+   481→          >
+   482→            {features.map((feature) => (
+   483→              <motion.div key={feature.title} variants={cardVariants}>
+   484→                <Card
+   485→                  className="glass-card border-0 cursor-pointer group hover:scale-[1.03] transition-all duration-300 py-0 overflow-hidden"
+   486→                  onClick={() => onNavigate(feature.page)}
+   487→                >
+   488→                  <CardContent className="p-6">
+   489→                    <div
+   490→                      className="mb-4 flex h-12 w-12 items-center justify-center rounded-lg transition-colors duration-300"
+   491→                      style={{ backgroundColor: `${feature.color}12` }}
+   492→                    >
+   493→                      <feature.icon
+   494→                        className="h-6 w-6 transition-transform duration-300 group-hover:scale-110"
+   495→                        style={{ color: feature.color }}
+   496→                      />
+   497→                    </div>
+   498→                    <h3 className="text-lg font-semibold text-foreground mb-2">
+   499→                      {feature.title}
+   500→                    </h3>
+   501→                    <p className="text-sm text-muted-foreground leading-relaxed">
+   502→                      {feature.description}
+   503→                    </p>
+   504→                    <div
+   505→                      className="mt-4 flex items-center text-sm font-medium opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+   506→                      style={{ color: feature.color }}
+   507→                    >
+   508→                      Explore
+   509→                      <ArrowRight className="ml-1 h-4 w-4 transition-transform group-hover:translate-x-1" />
+   510→                    </div>
+   511→                  </CardContent>
+   512→                </Card>
+   513→              </motion.div>
+   514→            ))}
+   515→          </motion.div>
+   516→        </div>
+   517→      </section>
+   518→
+   519→      {/* ============================================================ */}
+   520→      {/*  LIVE DEMO SECTION                                            */}
+   521→      {/* ============================================================ */}
+   522→      <section className="relative py-20">
+   523→        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+   524→          <motion.div
+   525→            initial={{ opacity: 0, y: 20 }}
+   526→            whileInView={{ opacity: 1, y: 0 }}
+   527→            viewport={{ once: true }}
+   528→            transition={{ duration: 0.5 }}
+   529→            className="text-center mb-14"
+   530→          >
+   531→            <h2 className="text-3xl sm:text-4xl font-bold text-foreground">
+   532→              Try It <span className="gradient-text">Live</span>
+   533→            </h2>
+   534→            <p className="mt-4 text-muted-foreground max-w-xl mx-auto">
+   535→              Generate a hash instantly. Pick an algorithm, enter your text, and
+   536→              see the result in real-time.
+   537→            </p>
+   538→          </motion.div>
+   539→
+   540→          <motion.div
+   541→            initial={{ opacity: 0, y: 30 }}
+   542→            whileInView={{ opacity: 1, y: 0 }}
+   543→            viewport={{ once: true }}
+   544→            transition={{ duration: 0.6, delay: 0.1 }}
+   545→            className="mx-auto max-w-2xl"
+   546→          >
+   547→            <div className="glass-card rounded-2xl p-6 sm:p-8 space-y-6">
+   548→              {/* Input row */}
+   549→              <div className="flex flex-col sm:flex-row gap-3">
+   550→                <div className="flex-1">
+   551→                  <Input
+   552→                    value={demoInput}
+   553→                    onChange={(e) => setDemoInput(e.target.value)}
+   554→                    placeholder="Enter text to hash..."
+   555→                    className="h-11 bg-white/5 border-white/10 text-foreground placeholder:text-muted-foreground/60 focus-visible:border-[#2563EB] focus-visible:ring-[#2563EB]/30 rounded-lg"
+   556→                  />
+   557→                </div>
+   558→                <Select value={demoAlgo} onValueChange={setDemoAlgo}>
+   559→                  <SelectTrigger className="w-full sm:w-[180px] h-11 bg-white/5 border-white/10 text-foreground rounded-lg">
+   560→                    <SelectValue placeholder="Algorithm" />
+   561→                  </SelectTrigger>
+   562→                  <SelectContent className="bg-[#161b2e] border-white/10">
+   563→                    {DEMO_ALGORITHMS.map((algo) => (
+   564→                      <SelectItem
+   565→                        key={algo}
+   566→                        value={algo}
+   567→                        className="text-foreground focus:bg-white/5 focus:text-foreground"
+   568→                      >
+   569→                        {algo}
+   570→                      </SelectItem>
+   571→                    ))}
+   572→                  </SelectContent>
+   573→                </Select>
+   574→              </div>
+   575→
+   576→              {/* Generate button */}
+   577→              <Button
+   578→                onClick={handleGenerate}
+   579→                disabled={isGenerating || !demoInput.trim()}
+   580→                className="w-full h-11 bg-[#2563EB] hover:bg-[#2563EB]/90 text-white rounded-lg shadow-lg shadow-[#2563EB]/20 disabled:opacity-50"
+   581→              >
+   582→                {isGenerating ? (
+   583→                  <span className="flex items-center gap-2">
+   584→                    <motion.span
+   585→                      animate={{ rotate: 360 }}
+   586→                      transition={{
+   587→                        duration: 1,
+   588→                        repeat: Infinity,
+   589→                        ease: 'linear',
+   590→                      }}
+   591→                      className="inline-block h-4 w-4 border-2 border-white/30 border-t-white rounded-full"
+   592→                    />
+   593→                    Generating...
+   594→                  </span>
+   595→                ) : (
+   596→                  <>
+   597→                    <Hash className="mr-2 h-4 w-4" />
+   598→                    Generate Hash
+   599→                  </>
+   600→                )}
+   601→              </Button>
+   602→
+   603→              {/* Result display */}
+   604→              {demoResult && (
+   605→                <motion.div
+   606→                  initial={{ opacity: 0, y: 10 }}
+   607→                  animate={{ opacity: 1, y: 0 }}
+   608→                  transition={{ duration: 0.3 }}
+   609→                  className="relative"
+   610→                >
+   611→                  <div className="rounded-lg bg-white/[0.03] border border-white/10 p-4">
+   612→                    <div className="flex items-center justify-between mb-2">
+   613→                      <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+   614→                        {demoAlgo} Result
+   615→                      </span>
+   616→                      <Button
+   617→                        variant="ghost"
+   618→                        size="sm"
+   619→                        onClick={handleCopy}
+   620→                        className="h-7 px-2 text-muted-foreground hover:text-foreground hover:bg-white/5"
+   621→                      >
+   622→                        {copied ? (
+   623→                          <Check className="h-3.5 w-3.5 text-cf-green" />
+   624→                        ) : (
+   625→                          <Copy className="h-3.5 w-3.5" />
+   626→                        )}
+   627→                        <span className="ml-1 text-xs">
+   628→                          {copied ? 'Copied!' : 'Copy'}
+   629→                        </span>
+   630→                      </Button>
+   631→                    </div>
+   632→                    <div className="result-display text-[#06B6D4]">
+   633→                      {demoResult}
+   634→                    </div>
+   635→                  </div>
+   636→                </motion.div>
+   637→              )}
+   638→            </div>
+   639→
+   640→            {/* Quick fact */}
+   641→            <motion.p
+   642→              initial={{ opacity: 0 }}
+   643→              whileInView={{ opacity: 1 }}
+   644→              viewport={{ once: true }}
+   645→              transition={{ duration: 0.5, delay: 0.4 }}
+   646→              className="mt-6 text-center text-sm text-muted-foreground"
+   647→            >
+   648→              All computations run locally in your browser. No data is ever
+   649→              sent to a server.
+   650→            </motion.p>
+   651→          </motion.div>
+   652→        </div>
+   653→      </section>
+   654→
+   655→      {/* ============================================================ */}
+   656→      {/*  FOOTER CTA                                                   */}
+   657→      {/* ============================================================ */}
+   658→      <section className="relative py-20">
+   659→        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom,rgba(37,99,235,0.06)_0%,transparent_60%)]" />
+   660→        <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+   661→          <motion.div
+   662→            initial={{ opacity: 0, y: 20 }}
+   663→            whileInView={{ opacity: 1, y: 0 }}
+   664→            viewport={{ once: true }}
+   665→            transition={{ duration: 0.5 }}
+   666→            className="glass-card rounded-2xl p-8 sm:p-12 text-center"
+   667→          >
+   668→            <h2 className="text-2xl sm:text-3xl font-bold text-foreground">
+   669→              Ready to Secure Your Data?
+   670→            </h2>
+   671→            <p className="mt-4 text-muted-foreground max-w-lg mx-auto">
+   672→              Start using CryptoForge today and experience enterprise-grade
+   673→              cryptography tools designed for developers and security
+   674→              professionals.
+   675→            </p>
+   676→            <div className="mt-8 flex flex-col sm:flex-row justify-center items-center gap-4">
+   677→              <Button
+   678→                size="lg"
+   679→                className="bg-[#2563EB] hover:bg-[#2563EB]/90 text-white rounded-lg px-8 h-12 shadow-lg shadow-[#2563EB]/20"
+   680→                onClick={() => onNavigate('hash')}
+   681→              >
+   682→                Start Hashing
+   683→                <ArrowRight className="ml-2 h-5 w-5" />
+   684→              </Button>
+   685→              <Button
+   686→                variant="outline"
+   687→                size="lg"
+   688→                className="glass-card border-white/10 text-foreground hover:bg-white/5 rounded-lg px-8 h-12"
+   689→                onClick={() => onNavigate('encryption')}
+   690→              >
+   691→                Try Encryption
+   692→              </Button>
+   693→            </div>
+   694→          </motion.div>
+   695→        </div>
+   696→      </section>
+   697→
+   698→      {/* Footer bar */}
+   699→      <footer className="border-t border-white/5 py-8">
+   700→        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
+   701→          <div className="flex items-center gap-2">
+   702→            <Shield className="h-5 w-5 text-[#2563EB]" />
+   703→            <span className="font-semibold text-foreground">CryptoForge</span>
+   704→          </div>
+   705→          <p className="text-sm text-muted-foreground">
+   706→            Enterprise Cryptography Laboratory &mdash; All computations
+   707→            performed locally.
+   708→          </p>
+   709→        </div>
+   710→      </footer>
+   711→    </div>
+   712→  );
+   713→}
+   714→
+   715→export default Dashboard;
+   716→

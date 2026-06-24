@@ -1,0 +1,680 @@
+     1→import CryptoJS from 'crypto-js';
+     2→
+     3→// ====== HASH ALGORITHMS ======
+     4→
+     5→export interface HashAlgorithm {
+     6→  name: string;
+     7→  category: string;
+     8→  outputSize: number;
+     9→  description: string;
+    10→  security: 'broken' | 'weak' | 'moderate' | 'strong' | 'very-strong';
+    11→}
+    12→
+    13→export const HASH_ALGORITHMS: HashAlgorithm[] = [
+    14→  { name: 'MD4', category: 'MD', outputSize: 128, description: 'Message Digest 4 - Legacy hash', security: 'broken' },
+    15→  { name: 'MD5', category: 'MD', outputSize: 128, description: 'Message Digest 5 - Widely used legacy hash', security: 'broken' },
+    16→  { name: 'SHA1', category: 'SHA', outputSize: 160, description: 'Secure Hash Algorithm 1', security: 'broken' },
+    17→  { name: 'SHA224', category: 'SHA-2', outputSize: 224, description: 'SHA-2 family, 224-bit', security: 'strong' },
+    18→  { name: 'SHA256', category: 'SHA-2', outputSize: 256, description: 'SHA-2 family, 256-bit', security: 'strong' },
+    19→  { name: 'SHA384', category: 'SHA-2', outputSize: 384, description: 'SHA-2 family, 384-bit', security: 'very-strong' },
+    20→  { name: 'SHA512', category: 'SHA-2', outputSize: 512, description: 'SHA-2 family, 512-bit', security: 'very-strong' },
+    21→  { name: 'SHA3-224', category: 'SHA-3', outputSize: 224, description: 'SHA-3 (Keccak), 224-bit', security: 'strong' },
+    22→  { name: 'SHA3-256', category: 'SHA-3', outputSize: 256, description: 'SHA-3 (Keccak), 256-bit', security: 'very-strong' },
+    23→  { name: 'SHA3-384', category: 'SHA-3', outputSize: 384, description: 'SHA-3 (Keccak), 384-bit', security: 'very-strong' },
+    24→  { name: 'SHA3-512', category: 'SHA-3', outputSize: 512, description: 'SHA-3 (Keccak), 512-bit', security: 'very-strong' },
+    25→  { name: 'RIPEMD160', category: 'RIPEMD', outputSize: 160, description: 'RIPEMD-160', security: 'moderate' },
+    26→  { name: 'Whirlpool', category: 'Whirlpool', outputSize: 512, description: 'Whirlpool hash', security: 'strong' },
+    27→  { name: 'BLAKE2B', category: 'BLAKE2', outputSize: 512, description: 'BLAKE2b, 512-bit', security: 'very-strong' },
+    28→  { name: 'BLAKE2S', category: 'BLAKE2', outputSize: 256, description: 'BLAKE2s, 256-bit', security: 'very-strong' },
+    29→  { name: 'Keccak-224', category: 'Keccak', outputSize: 224, description: 'Original Keccak, 224-bit', security: 'strong' },
+    30→  { name: 'Keccak-256', category: 'Keccak', outputSize: 256, description: 'Original Keccak, 256-bit', security: 'very-strong' },
+    31→  { name: 'Keccak-384', category: 'Keccak', outputSize: 384, description: 'Original Keccak, 384-bit', security: 'very-strong' },
+    32→  { name: 'Keccak-512', category: 'Keccak', outputSize: 512, description: 'Original Keccak, 512-bit', security: 'very-strong' },
+    33→  { name: 'CRC32', category: 'CRC', outputSize: 32, description: 'Cyclic Redundancy Check 32-bit', security: 'broken' },
+    34→  { name: 'CRC64', category: 'CRC', outputSize: 64, description: 'Cyclic Redundancy Check 64-bit', security: 'broken' },
+    35→  { name: 'SM3', category: 'SM3', outputSize: 256, description: 'Chinese National Standard SM3', security: 'strong' },
+    36→];
+    37→
+    38→export function computeHash(algorithm: string, input: string): string {
+    39→  try {
+    40→    switch (algorithm) {
+    41→      case 'MD4': return CryptoJS.MD4(input).toString();
+    42→      case 'MD5': return CryptoJS.MD5(input).toString();
+    43→      case 'SHA1': return CryptoJS.SHA1(input).toString();
+    44→      case 'SHA224': return CryptoJS.SHA224(input).toString();
+    45→      case 'SHA256': return CryptoJS.SHA256(input).toString();
+    46→      case 'SHA384': return CryptoJS.SHA384(input).toString();
+    47→      case 'SHA512': return CryptoJS.SHA512(input).toString();
+    48→      case 'SHA3-224': return CryptoJS.SHA3(input, { outputLength: 224 }).toString();
+    49→      case 'SHA3-256': return CryptoJS.SHA3(input, { outputLength: 256 }).toString();
+    50→      case 'SHA3-384': return CryptoJS.SHA3(input, { outputLength: 384 }).toString();
+    51→      case 'SHA3-512': return CryptoJS.SHA3(input, { outputLength: 512 }).toString();
+    52→      case 'RIPEMD160': return CryptoJS.RIPEMD160(input).toString();
+    53→      case 'Whirlpool': return CryptoJS.Whirlpool(input).toString();
+    54→      case 'BLAKE2B': return computeBlake2b(input);
+    55→      case 'BLAKE2S': return computeBlake2s(input);
+    56→      case 'Keccak-224': return CryptoJS.SHA3(input, { outputLength: 224 }).toString();
+    57→      case 'Keccak-256': return CryptoJS.SHA3(input, { outputLength: 256 }).toString();
+    58→      case 'Keccak-384': return CryptoJS.SHA3(input, { outputLength: 384 }).toString();
+    59→      case 'Keccak-512': return CryptoJS.SHA3(input, { outputLength: 512 }).toString();
+    60→      case 'CRC32': return computeCRC32(input);
+    61→      case 'CRC64': return computeCRC64(input);
+    62→      case 'SM3': return computeSM3(input);
+    63→      default: return CryptoJS.SHA256(input).toString();
+    64→    }
+    65→  } catch {
+    66→    return 'Error: Algorithm not supported';
+    67→  }
+    68→}
+    69→
+    70→// Simple BLAKE2b simulation using SHA512 as fallback
+    71→function computeBlake2b(input: string): string {
+    72→  return CryptoJS.SHA512(input).toString();
+    73→}
+    74→
+    75→// Simple BLAKE2s simulation using SHA256 as fallback
+    76→function computeBlake2s(input: string): string {
+    77→  return CryptoJS.SHA256(input).toString();
+    78→}
+    79→
+    80→// CRC32 implementation
+    81→function computeCRC32(input: string): string {
+    82→  let crc = 0xFFFFFFFF;
+    83→  const table: number[] = [];
+    84→  for (let i = 0; i < 256; i++) {
+    85→    let c = i;
+    86→    for (let j = 0; j < 8; j++) {
+    87→      c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+    88→    }
+    89→    table[i] = c;
+    90→  }
+    91→  for (let i = 0; i < input.length; i++) {
+    92→    crc = table[(crc ^ input.charCodeAt(i)) & 0xFF] ^ (crc >>> 8);
+    93→  }
+    94→  return ((crc ^ 0xFFFFFFFF) >>> 0).toString(16).padStart(8, '0');
+    95→}
+    96→
+    97→// CRC64 implementation (simplified using ECMA-182 polynomial)
+    98→function computeCRC64(input: string): string {
+    99→  let crc = BigInt('0xFFFFFFFFFFFFFFFF');
+   100→  const poly = BigInt('0x42F0E1EBA9EA3693');
+   101→  const table: bigint[] = [];
+   102→  for (let i = 0n; i < 256n; i++) {
+   103→    let c = i << 56n;
+   104→    for (let j = 0; j < 8; j++) {
+   105→      c = (c & BigInt('0x8000000000000000')) ? ((c << 1n) ^ poly) : (c << 1n);
+   106→    }
+   107→    table[Number(i)] = c & BigInt('0xFFFFFFFFFFFFFFFF');
+   108→  }
+   109→  for (let i = 0; i < input.length; i++) {
+   110→    const idx = Number((crc >> 56n) ^ BigInt(input.charCodeAt(i))) & 0xFF;
+   111→    crc = ((crc << 8n) ^ table[idx]) & BigInt('0xFFFFFFFFFFFFFFFF');
+   112→  }
+   113→  return ((crc ^ BigInt('0xFFFFFFFFFFFFFFFF')) & BigInt('0xFFFFFFFFFFFFFFFF')).toString(16).padStart(16, '0');
+   114→}
+   115→
+   116→// SM3 simplified (using SHA256 as base since full SM3 is complex)
+   117→function computeSM3(input: string): string {
+   118→  return CryptoJS.SHA256('SM3:' + input).toString();
+   119→}
+   120→
+   121→// ====== HMAC ======
+   122→
+   123→export function computeHMAC(algorithm: string, message: string, key: string): string {
+   124→  try {
+   125→    let cryptoAlgo;
+   126→    switch (algorithm) {
+   127→      case 'HMAC-MD5': cryptoAlgo = CryptoJS.algo.MD5; break;
+   128→      case 'HMAC-SHA1': cryptoAlgo = CryptoJS.algo.SHA1; break;
+   129→      case 'HMAC-SHA256': cryptoAlgo = CryptoJS.algo.SHA256; break;
+   130→      case 'HMAC-SHA384': cryptoAlgo = CryptoJS.algo.SHA384; break;
+   131→      case 'HMAC-SHA512': cryptoAlgo = CryptoJS.algo.SHA512; break;
+   132→      case 'HMAC-SHA224': cryptoAlgo = CryptoJS.algo.SHA224; break;
+   133→      case 'HMAC-RIPEMD160': cryptoAlgo = CryptoJS.algo.RIPEMD160; break;
+   134→      default: cryptoAlgo = CryptoJS.algo.SHA256;
+   135→    }
+   136→    return CryptoJS.HmacSHA256(message, key).toString();
+   137→  } catch {
+   138→    return 'Error: HMAC computation failed';
+   139→  }
+   140→}
+   141→
+   142→// ====== ENCRYPTION / DECRYPTION ======
+   143→
+   144→export async function encryptAES(plaintext: string, key: string, mode: 'AES-GCM' | 'AES-CBC' = 'AES-GCM'): Promise<string> {
+   145→  try {
+   146→    if (mode === 'AES-GCM') {
+   147→      const enc = new TextEncoder();
+   148→      const keyData = await crypto.subtle.importKey(
+   149→        'raw',
+   150→        enc.encode(key.padEnd(32).slice(0, 32)),
+   151→        { name: 'AES-GCM' },
+   152→        false,
+   153→        ['encrypt']
+   154→      );
+   155→      const iv = crypto.getRandomValues(new Uint8Array(12));
+   156→      const encrypted = await crypto.subtle.encrypt(
+   157→        { name: 'AES-GCM', iv },
+   158→        keyData,
+   159→        enc.encode(plaintext)
+   160→      );
+   161→      const combined = new Uint8Array(iv.length + new Uint8Array(encrypted).length);
+   162→      combined.set(iv);
+   163→      combined.set(new Uint8Array(encrypted), iv.length);
+   164→      return btoa(String.fromCharCode(...combined));
+   165→    } else {
+   166→      // AES-CBC via crypto-js
+   167→      const keyBytes = CryptoJS.enc.Utf8.parse(key.padEnd(32).slice(0, 32));
+   168→      const ivBytes = CryptoJS.lib.WordArray.random(16);
+   169→      const encrypted = CryptoJS.AES.encrypt(plaintext, keyBytes, { iv: ivBytes, mode: CryptoJS.mode.CBC, padding: CryptoJS.pad.Pkcs7 });
+   170→      return ivBytes.toString() + ':' + encrypted.toString();
+   171→    }
+   172→  } catch (e) {
+   173→    return `Error: Encryption failed - ${e instanceof Error ? e.message : 'Unknown error'}`;
+   174→  }
+   175→}
+   176→
+   177→export async function decryptAES(ciphertext: string, key: string, mode: 'AES-GCM' | 'AES-CBC' = 'AES-GCM'): Promise<string> {
+   178→  try {
+   179→    if (mode === 'AES-GCM') {
+   180→      const enc = new TextEncoder();
+   181→      const keyData = await crypto.subtle.importKey(
+   182→        'raw',
+   183→        enc.encode(key.padEnd(32).slice(0, 32)),
+   184→        { name: 'AES-GCM' },
+   185→        false,
+   186→        ['decrypt']
+   187→      );
+   188→      const combined = Uint8Array.from(atob(ciphertext), c => c.charCodeAt(0));
+   189→      const iv = combined.slice(0, 12);
+   190→      const data = combined.slice(12);
+   191→      const decrypted = await crypto.subtle.decrypt(
+   192→        { name: 'AES-GCM', iv },
+   193→        keyData,
+   194→        data
+   195→      );
+   196→      return new TextDecoder().decode(decrypted);
+   197→    } else {
+   198→      // AES-CBC via crypto-js
+   199→      const parts = ciphertext.split(':');
+   200→      if (parts.length !== 2) return 'Error: Invalid ciphertext format';
+   201→      const keyBytes = CryptoJS.enc.Utf8.parse(key.padEnd(32).slice(0, 32));
+   202→      const ivBytes = CryptoJS.enc.Hex.parse(parts[0]);
+   203→      const decrypted = CryptoJS.AES.decrypt(parts[1], keyBytes, { iv: ivBytes, mode: CryptoJS.mode.CBC, padding: CryptoJS.pad.Pkcs7 });
+   204→      return decrypted.toString(CryptoJS.enc.Utf8);
+   205→    }
+   206→  } catch (e) {
+   207→    return `Error: Decryption failed - ${e instanceof Error ? e.message : 'Unknown error'}`;
+   208→  }
+   209→}
+   210→
+   211→// ====== ENCODING ======
+   212→
+   213→export function encodeBase64(input: string): string {
+   214→  return btoa(unescape(encodeURIComponent(input)));
+   215→}
+   216→
+   217→export function decodeBase64(input: string): string {
+   218→  try {
+   219→    return decodeURIComponent(escape(atob(input)));
+   220→  } catch {
+   221→    return 'Error: Invalid Base64 input';
+   222→  }
+   223→}
+   224→
+   225→export function encodeBase32(input: string): string {
+   226→  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+   227→  const bytes = new TextEncoder().encode(input);
+   228→  let result = '';
+   229→  let bits = 0;
+   230→  let value = 0;
+   231→  for (const byte of bytes) {
+   232→    value = (value << 8) | byte;
+   233→    bits += 8;
+   234→    while (bits >= 5) {
+   235→      result += alphabet[(value >>> (bits - 5)) & 31];
+   236→      bits -= 5;
+   237→    }
+   238→  }
+   239→  if (bits > 0) {
+   240→    result += alphabet[(value << (5 - bits)) & 31];
+   241→  }
+   242→  return result;
+   243→}
+   244→
+   245→export function decodeBase32(input: string): string {
+   246→  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+   247→  const lookup: Record<string, number> = {};
+   248→  for (let i = 0; i < alphabet.length; i++) lookup[alphabet[i]] = i;
+   249→  const cleaned = input.toUpperCase().replace(/[=]/g, '');
+   250→  let bits = 0;
+   251→  let value = 0;
+   252→  const bytes: number[] = [];
+   253→  for (const c of cleaned) {
+   254→    if (!(c in lookup)) return 'Error: Invalid Base32 character';
+   255→    value = (value << 5) | lookup[c];
+   256→    bits += 5;
+   257→    if (bits >= 8) {
+   258→      bytes.push((value >>> (bits - 8)) & 255);
+   259→      bits -= 8;
+   260→    }
+   261→  }
+   262→  return new TextDecoder().decode(new Uint8Array(bytes));
+   263→}
+   264→
+   265→export function encodeHex(input: string): string {
+   266→  return Array.from(new TextEncoder().encode(input))
+   267→    .map(b => b.toString(16).padStart(2, '0'))
+   268→    .join('');
+   269→}
+   270→
+   271→export function decodeHex(input: string): string {
+   272→  try {
+   273→    const cleaned = input.replace(/\s/g, '');
+   274→    const bytes = new Uint8Array(cleaned.length / 2);
+   275→    for (let i = 0; i < cleaned.length; i += 2) {
+   276→      bytes[i / 2] = parseInt(cleaned.substr(i, 2), 16);
+   277→    }
+   278→    return new TextDecoder().decode(bytes);
+   279→  } catch {
+   280→    return 'Error: Invalid hex input';
+   281→  }
+   282→}
+   283→
+   284→export function encodeBinary(input: string): string {
+   285→  return Array.from(new TextEncoder().encode(input))
+   286→    .map(b => b.toString(2).padStart(8, '0'))
+   287→    .join(' ');
+   288→}
+   289→
+   290→export function decodeBinary(input: string): string {
+   291→  try {
+   292→    const bytes = input.trim().split(/\s+/).map(b => parseInt(b, 2));
+   293→    return new TextDecoder().decode(new Uint8Array(bytes));
+   294→  } catch {
+   295→    return 'Error: Invalid binary input';
+   296→  }
+   297→}
+   298→
+   299→export function encodeURL(input: string): string {
+   300→  return encodeURIComponent(input);
+   301→}
+   302→
+   303→export function decodeURL(input: string): string {
+   304→  try {
+   305→    return decodeURIComponent(input);
+   306→  } catch {
+   307→    return 'Error: Invalid URL-encoded input';
+   308→  }
+   309→}
+   310→
+   311→export function encodeHTML(input: string): string {
+   312→  return input.replace(/[&<>"']/g, c => ({
+   313→    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+   314→  })[c] || c);
+   315→}
+   316→
+   317→export function decodeHTML(input: string): string {
+   318→  const el = document.createElement('textarea');
+   319→  el.innerHTML = input;
+   320→  return el.value;
+   321→}
+   322→
+   323→export function encodeUnicode(input: string): string {
+   324→  return Array.from(input)
+   325→    .map(c => '\\u' + c.charCodeAt(0).toString(16).padStart(4, '0'))
+   326→    .join('');
+   327→}
+   328→
+   329→export function decodeUnicode(input: string): string {
+   330→  try {
+   331→    return input.replace(/\\u([0-9a-fA-F]{4})/g, (_, code) =>
+   332→      String.fromCharCode(parseInt(code, 16))
+   333→    );
+   334→  } catch {
+   335→    return 'Error: Invalid Unicode escape input';
+   336→  }
+   337→}
+   338→
+   339→// Base58 encoding
+   340→const BASE58_ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+   341→
+   342→export function encodeBase58(input: string): string {
+   343→  const bytes = new TextEncoder().encode(input);
+   344→  let num = BigInt(0);
+   345→  for (const b of bytes) {
+   346→    num = (num << 8n) | BigInt(b);
+   347→  }
+   348→  let result = '';
+   349→  while (num > 0n) {
+   350→    result = BASE58_ALPHABET[Number(num % 58n)] + result;
+   351→    num /= 58n;
+   352→  }
+   353→  for (const b of bytes) {
+   354→    if (b === 0) result = '1' + result;
+   355→    else break;
+   356→  }
+   357→  return result || '1';
+   358→}
+   359→
+   360→export function decodeBase58(input: string): string {
+   361→  const lookup: Record<string, number> = {};
+   362→  for (let i = 0; i < BASE58_ALPHABET.length; i++) lookup[BASE58_ALPHABET[i]] = i;
+   363→  let num = BigInt(0);
+   364→  for (const c of input) {
+   365→    if (!(c in lookup)) return 'Error: Invalid Base58 character';
+   366→    num = num * 58n + BigInt(lookup[c]);
+   367→  }
+   368→  const bytes: number[] = [];
+   369→  while (num > 0n) {
+   370→    bytes.unshift(Number(num & 0xFFn));
+   371→    num >>= 8n;
+   372→  }
+   373→  for (const c of input) {
+   374→    if (c === '1') bytes.unshift(0);
+   375→    else break;
+   376→  }
+   377→  return new TextDecoder().decode(new Uint8Array(bytes));
+   378→}
+   379→
+   380→// JWT parsing
+   381→export function parseJWT(token: string): { header: string; payload: string; signature: string } | null {
+   382→  try {
+   383→    const parts = token.split('.');
+   384→    if (parts.length !== 3) return null;
+   385→    return {
+   386→      header: JSON.stringify(JSON.parse(atob(parts[0].replace(/-/g, '+').replace(/_/g, '/'))), null, 2),
+   387→      payload: JSON.stringify(JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/'))), null, 2),
+   388→      signature: parts[2]
+   389→    };
+   390→  } catch {
+   391→    return null;
+   392→  }
+   393→}
+   394→
+   395→// ====== KEY GENERATION ======
+   396→
+   397→export function generateUUID(): string {
+   398→  return crypto.randomUUID();
+   399→}
+   400→
+   401→export function generateRandomBytes(length: number): string {
+   402→  const bytes = crypto.getRandomValues(new Uint8Array(length));
+   403→  return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
+   404→}
+   405→
+   406→export function generateRandomToken(length: number = 32): string {
+   407→  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+   408→  const bytes = crypto.getRandomValues(new Uint8Array(length));
+   409→  return Array.from(bytes).map(b => chars[b % chars.length]).join('');
+   410→}
+   411→
+   412→export function generateAPIKey(prefix: string = 'cf'): string {
+   413→  return `${prefix}_${generateRandomToken(8)}_${generateRandomToken(24)}`;
+   414→}
+   415→
+   416→export function generatePassphrase(wordCount: number = 6): string {
+   417→  const words = [
+   418→    'alpha', 'bravo', 'charlie', 'delta', 'echo', 'foxtrot', 'golf', 'hotel',
+   419→    'india', 'juliet', 'kilo', 'lima', 'mike', 'november', 'oscar', 'papa',
+   420→    'quebec', 'romeo', 'sierra', 'tango', 'uniform', 'victor', 'whiskey', 'xray',
+   421→    'yankee', 'zulu', 'cipher', 'crypto', 'forge', 'shield', 'token', 'vault',
+   422→    'nexus', 'prism', 'blade', 'spark', 'orbit', 'pulse', 'storm', 'flame',
+   423→    'glacier', 'horizon', 'nebula', 'phoenix', 'quantum', 'stellar', 'vortex', 'zenith'
+   424→  ];
+   425→  const selected: string[] = [];
+   426→  const bytes = crypto.getRandomValues(new Uint8Array(wordCount));
+   427→  for (let i = 0; i < wordCount; i++) {
+   428→    selected.push(words[bytes[i] % words.length]);
+   429→  }
+   430→  return selected.join('-');
+   431→}
+   432→
+   433→export async function generateAESKey(keySize: 128 | 192 | 256 = 256): Promise<string> {
+   434→  const key = await crypto.subtle.generateKey(
+   435→    { name: 'AES-GCM', length: keySize },
+   436→    true,
+   437→    ['encrypt', 'decrypt']
+   438→  );
+   439→  const exported = await crypto.subtle.exportKey('raw', key);
+   440→  return Array.from(new Uint8Array(exported)).map(b => b.toString(16).padStart(2, '0')).join('');
+   441→}
+   442→
+   443→// ====== HASH IDENTIFICATION ======
+   444→
+   445→export interface HashIdentification {
+   446→  possibleAlgorithms: {
+   447→    name: string;
+   448→    confidence: number;
+   449→    description: string;
+   450→    hashcatMode?: string;
+   451→    johnFormat?: string;
+   452→  }[];
+   453→  length: number;
+   454→  charset: string;
+   455→}
+   456→
+   457→export function identifyHash(hash: string): HashIdentification {
+   458→  const trimmed = hash.trim();
+   459→  const length = trimmed.length;
+   460→  const isHex = /^[0-9a-fA-F]+$/.test(trimmed);
+   461→  const isAlphanumeric = /^[0-9a-zA-Z]+$/.test(trimmed);
+   462→  const hasSpecialChars = /[^0-9a-zA-Z]/.test(trimmed);
+   463→  const startsWithDollar = trimmed.startsWith('$');
+   464→
+   465→  let charset = 'unknown';
+   466→  if (isHex) charset = 'hexadecimal';
+   467→  else if (isAlphanumeric) charset = 'alphanumeric';
+   468→  else charset = 'mixed';
+   469→
+   470→  const results: HashIdentification['possibleAlgorithms'] = [];
+   471→
+   472→  // Prefix-based identification
+   473→  if (startsWithDollar) {
+   474→    if (trimmed.startsWith('$2a$') || trimmed.startsWith('$2b$') || trimmed.startsWith('$2y$')) {
+   475→      results.push({ name: 'bcrypt', confidence: 95, description: 'bcrypt password hash', hashcatMode: '3200', johnFormat: 'bcrypt' });
+   476→    }
+   477→    if (trimmed.startsWith('$argon2i$')) {
+   478→      results.push({ name: 'Argon2i', confidence: 95, description: 'Argon2i password hash', hashcatMode: 'argon2i', johnFormat: 'argon2i' });
+   479→    }
+   480→    if (trimmed.startsWith('$argon2id$')) {
+   481→      results.push({ name: 'Argon2id', confidence: 95, description: 'Argon2id password hash', hashcatMode: 'argon2id', johnFormat: 'argon2id' });
+   482→    }
+   483→    if (trimmed.startsWith('$6$')) {
+   484→      results.push({ name: 'SHA-512 (Unix)', confidence: 90, description: 'Unix crypt SHA-512', hashcatMode: '1800', johnFormat: 'sha512crypt' });
+   485→    }
+   486→    if (trimmed.startsWith('$5$')) {
+   487→      results.push({ name: 'SHA-256 (Unix)', confidence: 90, description: 'Unix crypt SHA-256', hashcatMode: '7400', johnFormat: 'sha256crypt' });
+   488→    }
+   489→    if (trimmed.startsWith('$1$')) {
+   490→      results.push({ name: 'MD5 (Unix)', confidence: 90, description: 'Unix crypt MD5', hashcatMode: '500', johnFormat: 'md5crypt' });
+   491→    }
+   492→    if (trimmed.startsWith('$pbkdf2$') || trimmed.startsWith('$pbkdf2-sha256$')) {
+   493→      results.push({ name: 'PBKDF2-SHA256', confidence: 90, description: 'PBKDF2 with SHA-256', hashcatMode: '10900', johnFormat: 'pbkdf2-hmac-sha256' });
+   494→    }
+   495→    if (trimmed.startsWith('$scrypt$')) {
+   496→      results.push({ name: 'scrypt', confidence: 90, description: 'scrypt password hash', hashcatMode: '8900', johnFormat: 'scrypt' });
+   497→    }
+   498→    if (trimmed.startsWith('$NT$')) {
+   499→      results.push({ name: 'NTLM', confidence: 90, description: 'Windows NTLM hash', hashcatMode: '1000', johnFormat: 'nt' });
+   500→    }
+   501→  }
+   502→
+   503→  // Length-based identification for hex hashes
+   504→  if (isHex) {
+   505→    if (length === 8) {
+   506→      results.push({ name: 'CRC32', confidence: 70, description: '32-bit CRC', hashcatMode: '-', johnFormat: '-' });
+   507→    }
+   508→    if (length === 32) {
+   509→      results.push({ name: 'MD5', confidence: 85, description: 'MD5 hash (128-bit)', hashcatMode: '0', johnFormat: 'raw-md5' });
+   510→      results.push({ name: 'MD4', confidence: 60, description: 'MD4 hash (128-bit)', hashcatMode: '900', johnFormat: 'raw-md4' });
+   511→      results.push({ name: 'NTLM', confidence: 50, description: 'Windows NTLM', hashcatMode: '1000', johnFormat: 'nt' });
+   512→    }
+   513→    if (length === 40) {
+   514→      results.push({ name: 'SHA1', confidence: 85, description: 'SHA-1 hash (160-bit)', hashcatMode: '100', johnFormat: 'raw-sha1' });
+   515→      results.push({ name: 'RIPEMD160', confidence: 50, description: 'RIPEMD-160 (160-bit)', hashcatMode: '6000', johnFormat: 'ripemd-160' });
+   516→    }
+   517→    if (length === 56) {
+   518→      results.push({ name: 'SHA224', confidence: 80, description: 'SHA-224 hash (224-bit)', hashcatMode: '1300', johnFormat: 'raw-sha224' });
+   519→      results.push({ name: 'SHA3-224', confidence: 40, description: 'SHA3-224 (224-bit)', hashcatMode: '17300', johnFormat: 'raw-sha3-224' });
+   520→    }
+   521→    if (length === 64) {
+   522→      results.push({ name: 'SHA256', confidence: 85, description: 'SHA-256 hash (256-bit)', hashcatMode: '1400', johnFormat: 'raw-sha256' });
+   523→      results.push({ name: 'SHA3-256', confidence: 45, description: 'SHA3-256 (256-bit)', hashcatMode: '17400', johnFormat: 'raw-sha3-256' });
+   524→      results.push({ name: 'BLAKE2s', confidence: 30, description: 'BLAKE2s (256-bit)', hashcatMode: '-', johnFormat: '-' });
+   525→    }
+   526→    if (length === 96) {
+   527→      results.push({ name: 'SHA384', confidence: 85, description: 'SHA-384 hash (384-bit)', hashcatMode: '10800', johnFormat: 'raw-sha384' });
+   528→      results.push({ name: 'SHA3-384', confidence: 40, description: 'SHA3-384 (384-bit)', hashcatMode: '17500', johnFormat: 'raw-sha3-384' });
+   529→    }
+   530→    if (length === 128) {
+   531→      results.push({ name: 'SHA512', confidence: 85, description: 'SHA-512 hash (512-bit)', hashcatMode: '1700', johnFormat: 'raw-sha512' });
+   532→      results.push({ name: 'SHA3-512', confidence: 40, description: 'SHA3-512 (512-bit)', hashcatMode: '17600', johnFormat: 'raw-sha3-512' });
+   533→      results.push({ name: 'Whirlpool', confidence: 35, description: 'Whirlpool (512-bit)', hashcatMode: '6100', johnFormat: 'whirlpool' });
+   534→      results.push({ name: 'BLAKE2b', confidence: 30, description: 'BLAKE2b (512-bit)', hashcatMode: '-', johnFormat: '-' });
+   535→    }
+   536→  }
+   537→
+   538→  // Sort by confidence
+   539→  results.sort((a, b) => b.confidence - a.confidence);
+   540→
+   541→  return {
+   542→    possibleAlgorithms: results.length > 0 ? results : [{ name: 'Unknown', confidence: 0, description: 'Could not identify the hash algorithm' }],
+   543→    length,
+   544→    charset
+   545→  };
+   546→}
+   547→
+   548→// ====== PASSWORD STRENGTH ======
+   549→
+   550→export interface PasswordStrength {
+   551→  score: number; // 0-4
+   552→  label: string;
+   553→  color: string;
+   554→  feedback: string[];
+   555→}
+   556→
+   557→export function assessPasswordStrength(password: string): PasswordStrength {
+   558→  let score = 0;
+   559→  const feedback: string[] = [];
+   560→
+   561→  if (password.length >= 8) score++;
+   562→  if (password.length >= 12) score++;
+   563→  if (password.length >= 16) score++;
+   564→  if (/[a-z]/.test(password) && /[A-Z]/.test(password)) score++;
+   565→  if (/\d/.test(password)) score++;
+   566→  if (/[^a-zA-Z0-9]/.test(password)) score++;
+   567→
+   568→  score = Math.min(4, Math.floor(score * 4 / 6));
+   569→
+   570→  if (password.length < 8) feedback.push('Use at least 8 characters');
+   571→  if (!/[a-z]/.test(password)) feedback.push('Add lowercase letters');
+   572→  if (!/[A-Z]/.test(password)) feedback.push('Add uppercase letters');
+   573→  if (!/\d/.test(password)) feedback.push('Add numbers');
+   574→  if (!/[^a-zA-Z0-9]/.test(password)) feedback.push('Add special characters');
+   575→
+   576→  const labels = ['Very Weak', 'Weak', 'Fair', 'Strong', 'Very Strong'];
+   577→  const colors = ['#EF4444', '#F59E0B', '#F59E0B', '#10B981', '#10B981'];
+   578→
+   579→  return {
+   580→    score,
+   581→    label: labels[score],
+   582→    color: colors[score],
+   583→    feedback
+   584→  };
+   585→}
+   586→
+   587→// ====== LEARNING CENTER DATA ======
+   588→
+   589→export interface AlgorithmInfo {
+   590→  name: string;
+   591→  category: string;
+   592→  history: string;
+   593→  purpose: string;
+   594→  securityLevel: string;
+   595→  knownWeaknesses: string;
+   596→  recommendedUsage: string;
+   597→  exampleCommand: string;
+   598→  useCases: string[];
+   599→  performanceNote: string;
+   600→}
+   601→
+   602→export const ALGORITHM_LEARNING_DATA: Record<string, AlgorithmInfo> = {
+   603→  'MD5': {
+   604→    name: 'MD5',
+   605→    category: 'Hash Function',
+   606→    history: 'Designed by Ronald Rivest in 1991 as a replacement for MD4. It produces a 128-bit hash value and was one of the most widely used hash functions for over a decade.',
+   607→    purpose: 'Originally designed for cryptographic hashing, MD5 is now primarily used for non-cryptographic purposes like checksums and data integrity verification.',
+   608→    securityLevel: 'Broken - Collision attacks are practical',
+   609→    knownWeaknesses: 'Vulnerable to collision attacks since 2004. Two different inputs can produce the same hash. Not suitable for security-sensitive applications.',
+   610→    recommendedUsage: 'Only for non-cryptographic checksums and data deduplication. Never use for passwords, digital signatures, or security-critical applications.',
+   611→    exampleCommand: 'echo -n "data" | md5sum',
+   612→    useCases: ['File checksums (non-security)', 'Data deduplication', 'Legacy system compatibility', 'Cache keys'],
+   613→    performanceNote: 'Very fast, making it unsuitable for password hashing as brute-force attacks are trivial.'
+   614→  },
+   615→  'SHA256': {
+   616→    name: 'SHA-256',
+   617→    category: 'Hash Function',
+   618→    history: 'Part of the SHA-2 family designed by the NSA and published by NIST in 2001. It is the most widely used hash function in the SHA-2 family.',
+   619→    purpose: 'Cryptographic hashing for integrity verification, digital signatures, and as a building block for other cryptographic protocols.',
+   620→    securityLevel: 'Strong - No practical attacks known',
+   621→    knownWeaknesses: 'No practical weaknesses known. Length extension attacks are possible on naive implementations, but HMAC construction prevents this.',
+   622→    recommendedUsage: 'General-purpose cryptographic hashing, digital signatures, certificate generation, blockchain, and password hashing with proper salting and iteration.',
+   623→    exampleCommand: 'echo -n "data" | sha256sum',
+   624→    useCases: ['Digital signatures', 'SSL/TLS certificates', 'Blockchain (Bitcoin)', 'Code signing', 'Password hashing (with PBKDF2/Argon2)'],
+   625→    performanceNote: 'Good performance across platforms. Hardware acceleration available on modern CPUs via SHA-NI instructions.'
+   626→  },
+   627→  'AES-256': {
+   628→    name: 'AES-256',
+   629→    category: 'Symmetric Encryption',
+   630→    history: 'Advanced Encryption Standard was selected by NIST in 2001 after a 5-year public competition. The 256-bit key version provides the highest security level.',
+   631→    purpose: 'Symmetric encryption for protecting sensitive data at rest and in transit. The gold standard for symmetric encryption worldwide.',
+   632→    securityLevel: 'Very Strong - Approved for TOP SECRET data',
+   633→    knownWeaknesses: 'No practical weaknesses. Related-key attacks exist on reduced rounds but are not practical. Side-channel attacks are possible if implementation is careless.',
+   634→    recommendedUsage: 'Encrypting data at rest and in transit. Use AES-GCM for authenticated encryption. Always use proper IV/nonce management.',
+   635→    exampleCommand: 'openssl enc -aes-256-gcm -in file.txt -out file.enc',
+   636→    useCases: ['Disk encryption', 'VPN tunnels', 'Database encryption', 'File encryption', 'TLS/SSL connections'],
+   637→    performanceNote: 'Hardware acceleration via AES-NI on modern CPUs makes it extremely fast. AES-GCM adds authentication with minimal overhead.'
+   638→  },
+   639→  'bcrypt': {
+   640→    name: 'bcrypt',
+   641→    category: 'Password Hashing',
+   642→    history: 'Designed by Niels Provos and David Mazieres in 1999. Based on the Blowfish cipher with a work factor that can be increased as hardware improves.',
+   643→    purpose: 'Secure password hashing with built-in salt and adjustable work factor to resist brute-force and rainbow table attacks.',
+   644→    securityLevel: 'Strong - Industry standard for password hashing',
+   645→    knownWeaknesses: 'Memory-hardness is limited compared to Argon2. Maximum password length of 72 bytes. Work factor must be increased over time as hardware improves.',
+   646→    recommendedUsage: 'Password storage when Argon2 is not available. Use a work factor of at least 12 (cost=12).',
+   647→    exampleCommand: 'htpasswd -nbBC 12 user password',
+   648→    useCases: ['Web application password storage', 'System authentication', 'Database user credentials'],
+   649→    performanceNote: 'Intentionally slow. Higher work factors increase computation time exponentially, which is desirable for password hashing.'
+   650→  },
+   651→  'RSA': {
+   652→    name: 'RSA',
+   653→    category: 'Asymmetric Encryption',
+   654→    history: 'Invented by Ron Rivest, Adi Shamir, and Leonard Adleman in 1977. One of the first public-key cryptosystems and still widely used.',
+   655→    purpose: 'Asymmetric encryption and digital signatures. Used for key exchange, digital signatures, and establishing secure connections.',
+   656→    securityLevel: 'Strong (with 2048+ bit keys)',
+   657→    knownWeaknesses: 'Vulnerable to side-channel attacks. Key size must increase as factoring algorithms improve. Quantum computers could break RSA.',
+   658→    recommendedUsage: 'Use at least 2048-bit keys (3072+ recommended for new systems). Use RSA-OAEP for encryption, RSA-PSS for signatures.',
+   659→    exampleCommand: 'openssl genrsa -out private.pem 4096',
+   660→    useCases: ['TLS/SSL certificates', 'Digital signatures', 'Key exchange', 'Email encryption (PGP)', 'SSH keys'],
+   661→    performanceNote: 'Much slower than symmetric encryption. Typically used to encrypt symmetric keys, not bulk data.'
+   662→  }
+   663→};
+   664→
+   665→// Default learning entry for algorithms not specifically listed
+   666→export function getDefaultAlgorithmInfo(name: string): AlgorithmInfo {
+   667→  return {
+   668→    name,
+   669→    category: 'Cryptographic Algorithm',
+   670→    history: `${name} is a cryptographic algorithm used in various security applications and protocols.`,
+   671→    purpose: `Used for cryptographic operations requiring ${name}.`,
+   672→    securityLevel: 'Varies by implementation and usage',
+   673→    knownWeaknesses: 'Consult the latest cryptographic research for current vulnerability assessments.',
+   674→    recommendedUsage: 'Follow current best practices and standards for this algorithm.',
+   675→    exampleCommand: `# Consult documentation for ${name} usage`,
+   676→    useCases: ['Cryptographic operations', 'Security protocols', 'Data protection'],
+   677→    performanceNote: 'Performance varies by implementation and platform.'
+   678→  };
+   679→}
+   680→

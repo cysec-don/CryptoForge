@@ -1,0 +1,969 @@
+     1→'use client';
+     2→
+     3→import { useState, useCallback } from 'react';
+     4→import { motion, AnimatePresence } from 'framer-motion';
+     5→import {
+     6→  Hash,
+     7→  Copy,
+     8→  Check,
+     9→  Download,
+    10→  Trash2,
+    11→  ChevronDown,
+    12→  ChevronUp,
+    13→  FileText,
+    14→  Type,
+    15→  GitCompareArrows,
+    16→  History,
+    17→} from 'lucide-react';
+    18→import { Button } from '@/components/ui/button';
+    19→import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+    20→import { Input } from '@/components/ui/input';
+    21→import { Textarea } from '@/components/ui/textarea';
+    22→import { Badge } from '@/components/ui/badge';
+    23→import {
+    24→  Tabs,
+    25→  TabsContent,
+    26→  TabsList,
+    27→  TabsTrigger,
+    28→} from '@/components/ui/tabs';
+    29→import {
+    30→  computeHash,
+    31→  HASH_ALGORITHMS,
+    32→  type HashAlgorithm,
+    33→} from '@/lib/crypto';
+    34→
+    35→// ─── Types ────────────────────────────────────────────────────────────────────
+    36→
+    37→interface HashResult {
+    38→  algorithm: HashAlgorithm;
+    39→  hash: string;
+    40→}
+    41→
+    42→interface HistoryEntry {
+    43→  id: string;
+    44→  timestamp: Date;
+    45→  inputPreview: string;
+    46→  algorithms: string[];
+    47→  results: HashResult[];
+    48→}
+    49→
+    50→type SecurityLevel = HashAlgorithm['security'];
+    51→type InputMode = 'text' | 'file';
+    52→type CategoryTab = 'All' | 'SHA-2' | 'SHA-3' | 'MD' | 'CRC' | 'Other';
+    53→
+    54→// ─── Constants ────────────────────────────────────────────────────────────────
+    55→
+    56→const CATEGORY_TABS: CategoryTab[] = [
+    57→  'All',
+    58→  'SHA-2',
+    59→  'SHA-3',
+    60→  'MD',
+    61→  'CRC',
+    62→  'Other',
+    63→];
+    64→
+    65→const SECURITY_CONFIG: Record<
+    66→  SecurityLevel,
+    67→  { label: string; color: string; bgColor: string; borderColor: string }
+    68→> = {
+    69→  broken: {
+    70→    label: 'Broken',
+    71→    color: 'text-red-400',
+    72→    bgColor: 'bg-red-500/10',
+    73→    borderColor: 'border-red-500/20',
+    74→  },
+    75→  weak: {
+    76→    label: 'Weak',
+    77→    color: 'text-amber-400',
+    78→    bgColor: 'bg-amber-500/10',
+    79→    borderColor: 'border-amber-500/20',
+    80→  },
+    81→  moderate: {
+    82→    label: 'Moderate',
+    83→    color: 'text-yellow-400',
+    84→    bgColor: 'bg-yellow-500/10',
+    85→    borderColor: 'border-yellow-500/20',
+    86→  },
+    87→  strong: {
+    88→    label: 'Strong',
+    89→    color: 'text-green-400',
+    90→    bgColor: 'bg-green-500/10',
+    91→    borderColor: 'border-green-500/20',
+    92→  },
+    93→  'very-strong': {
+    94→    label: 'Very Strong',
+    95→    color: 'text-cyan-400',
+    96→    bgColor: 'bg-cyan-500/10',
+    97→    borderColor: 'border-cyan-500/20',
+    98→  },
+    99→};
+   100→
+   101→// ─── Helpers ──────────────────────────────────────────────────────────────────
+   102→
+   103→function filterByCategory(
+   104→  algorithms: HashAlgorithm[],
+   105→  category: CategoryTab
+   106→): HashAlgorithm[] {
+   107→  if (category === 'All') return algorithms;
+   108→  if (category === 'Other') {
+   109→    const known = new Set(['SHA-2', 'SHA-3', 'MD', 'CRC']);
+   110→    return algorithms.filter((a) => !known.has(a.category));
+   111→  }
+   112→  return algorithms.filter((a) => a.category === category);
+   113→}
+   114→
+   115→function truncateMiddle(str: string, maxLen: number): string {
+   116→  if (str.length <= maxLen) return str;
+   117→  const half = Math.floor(maxLen / 2);
+   118→  return str.slice(0, half) + '...' + str.slice(str.length - half);
+   119→}
+   120→
+   121→// ─── Component ────────────────────────────────────────────────────────────────
+   122→
+   123→export function Hashing() {
+   124→  // ── State ──
+   125→  const [inputText, setInputText] = useState('');
+   126→  const [inputMode, setInputMode] = useState<InputMode>('text');
+   127→  const [selectedAlgorithms, setSelectedAlgorithms] = useState<Set<string>>(
+   128→    new Set(['SHA256'])
+   129→  );
+   130→  const [activeCategory, setActiveCategory] = useState<CategoryTab>('All');
+   131→  const [hashResults, setHashResults] = useState<HashResult[]>([]);
+   132→  const [isGenerating, setIsGenerating] = useState(false);
+   133→  const [copiedId, setCopiedId] = useState<string | null>(null);
+   134→  const [copiedAll, setCopiedAll] = useState(false);
+   135→
+   136→  // Comparison
+   137→  const [showComparison, setShowComparison] = useState(false);
+   138→  const [compareHash, setCompareHash] = useState('');
+   139→
+   140→  // History
+   141→  const [showHistory, setShowHistory] = useState(false);
+   142→  const [history, setHistory] = useState<HistoryEntry[]>([]);
+   143→
+   144→  // Drag state
+   145→  const [isDragOver, setIsDragOver] = useState(false);
+   146→
+   147→  // ── Derived ──
+   148→  const filteredAlgorithms = filterByCategory(
+   149→    HASH_ALGORITHMS,
+   150→    activeCategory
+   151→  );
+   152→  const allFilteredSelected =
+   153→    filteredAlgorithms.length > 0 &&
+   154→    filteredAlgorithms.every((a) => selectedAlgorithms.has(a.name));
+   155→
+   156→  // ── Handlers ──
+   157→
+   158→  const toggleAlgorithm = useCallback((name: string) => {
+   159→    setSelectedAlgorithms((prev) => {
+   160→      const next = new Set(prev);
+   161→      if (next.has(name)) next.delete(name);
+   162→      else next.add(name);
+   163→      return next;
+   164→    });
+   165→  }, []);
+   166→
+   167→  const selectAllFiltered = useCallback(() => {
+   168→    setSelectedAlgorithms((prev) => {
+   169→      const next = new Set(prev);
+   170→      filteredAlgorithms.forEach((a) => next.add(a.name));
+   171→      return next;
+   172→    });
+   173→  }, [filteredAlgorithms]);
+   174→
+   175→  const deselectAllFiltered = useCallback(() => {
+   176→    setSelectedAlgorithms((prev) => {
+   177→      const next = new Set(prev);
+   178→      filteredAlgorithms.forEach((a) => next.delete(a.name));
+   179→      return next;
+   180→    });
+   181→  }, [filteredAlgorithms]);
+   182→
+   183→  const clearInput = useCallback(() => {
+   184→    setInputText('');
+   185→    setHashResults([]);
+   186→  }, []);
+   187→
+   188→  const generateHashes = useCallback(() => {
+   189→    if (!inputText.trim() || selectedAlgorithms.size === 0) return;
+   190→
+   191→    setIsGenerating(true);
+   192→
+   193→    // Simulate brief processing delay for UX
+   194→    setTimeout(() => {
+   195→      const results: HashResult[] = [];
+   196→      for (const algo of HASH_ALGORITHMS) {
+   197→        if (selectedAlgorithms.has(algo.name)) {
+   198→          results.push({
+   199→            algorithm: algo,
+   200→            hash: computeHash(algo.name, inputText),
+   201→          });
+   202→        }
+   203→      }
+   204→
+   205→      setHashResults(results);
+   206→      setIsGenerating(false);
+   207→
+   208→      // Add to history
+   209→      const entry: HistoryEntry = {
+   210→        id: Date.now().toString(),
+   211→        timestamp: new Date(),
+   212→        inputPreview:
+   213→          inputText.length > 60 ? inputText.slice(0, 60) + '...' : inputText,
+   214→        algorithms: results.map((r) => r.algorithm.name),
+   215→        results,
+   216→      };
+   217→      setHistory((prev) => [entry, ...prev].slice(0, 20));
+   218→    }, 300);
+   219→  }, [inputText, selectedAlgorithms]);
+   220→
+   221→  const copyToClipboard = useCallback(
+   222→    async (text: string, id: string) => {
+   223→      try {
+   224→        await navigator.clipboard.writeText(text);
+   225→        setCopiedId(id);
+   226→        setTimeout(() => setCopiedId(null), 2000);
+   227→      } catch {
+   228→        // Fallback
+   229→        const textarea = document.createElement('textarea');
+   230→        textarea.value = text;
+   231→        document.body.appendChild(textarea);
+   232→        textarea.select();
+   233→        document.execCommand('copy');
+   234→        document.body.removeChild(textarea);
+   235→        setCopiedId(id);
+   236→        setTimeout(() => setCopiedId(null), 2000);
+   237→      }
+   238→    },
+   239→    []
+   240→  );
+   241→
+   242→  const copyAll = useCallback(async () => {
+   243→    if (hashResults.length === 0) return;
+   244→    const text = hashResults
+   245→      .map((r) => `${r.algorithm.name}: ${r.hash}`)
+   246→      .join('\n');
+   247→    await copyToClipboard(text, '__all__');
+   248→    setCopiedAll(true);
+   249→    setTimeout(() => setCopiedAll(false), 2000);
+   250→  }, [hashResults, copyToClipboard]);
+   251→
+   252→  const exportResults = useCallback(() => {
+   253→    if (hashResults.length === 0) return;
+   254→    const data = {
+   255→      input: inputText,
+   256→      timestamp: new Date().toISOString(),
+   257→      results: hashResults.map((r) => ({
+   258→        algorithm: r.algorithm.name,
+   259→        category: r.algorithm.category,
+   260→        outputSize: r.algorithm.outputSize,
+   261→        security: r.algorithm.security,
+   262→        hash: r.hash,
+   263→      })),
+   264→    };
+   265→    const blob = new Blob([JSON.stringify(data, null, 2)], {
+   266→      type: 'application/json',
+   267→    });
+   268→    const url = URL.createObjectURL(blob);
+   269→    const a = document.createElement('a');
+   270→    a.href = url;
+   271→    a.download = `hash-results-${Date.now()}.json`;
+   272→    document.body.appendChild(a);
+   273→    a.click();
+   274→    document.body.removeChild(a);
+   275→    URL.revokeObjectURL(url);
+   276→  }, [hashResults, inputText]);
+   277→
+   278→  const loadFromHistory = useCallback((entry: HistoryEntry) => {
+   279→    setInputText(entry.inputPreview.replace('...', ''));
+   280→    setHashResults(entry.results);
+   281→    setSelectedAlgorithms(new Set(entry.algorithms));
+   282→  }, []);
+   283→
+   284→  const clearHistory = useCallback(() => {
+   285→    setHistory([]);
+   286→  }, []);
+   287→
+   288→  // ── Drag handlers ──
+   289→  const handleDragOver = useCallback(
+   290→    (e: React.DragEvent) => {
+   291→      e.preventDefault();
+   292→      if (inputMode === 'file') setIsDragOver(true);
+   293→    },
+   294→    [inputMode]
+   295→  );
+   296→
+   297→  const handleDragLeave = useCallback(() => {
+   298→    setIsDragOver(false);
+   299→  }, []);
+   300→
+   301→  const handleDrop = useCallback(
+   302→    (e: React.DragEvent) => {
+   303→      e.preventDefault();
+   304→      setIsDragOver(false);
+   305→      if (inputMode === 'file') {
+   306→        const files = e.dataTransfer.files;
+   307→        if (files.length > 0) {
+   308→          setInputText(`[File: ${files[0].name}]`);
+   309→        }
+   310→      }
+   311→    },
+   312→    [inputMode]
+   313→  );
+   314→
+   315→  // ── Render ──
+   316→
+   317→  return (
+   318→    <div className="w-full max-w-5xl mx-auto space-y-6 p-4 md:p-6">
+   319→      {/* ── Header ── */}
+   320→      <motion.div
+   321→        initial={{ opacity: 0, y: -20 }}
+   322→        animate={{ opacity: 1, y: 0 }}
+   323→        transition={{ duration: 0.5 }}
+   324→        className="text-center space-y-2"
+   325→      >
+   326→        <div className="flex items-center justify-center gap-3">
+   327→          <div className="p-2.5 rounded-xl bg-blue-600/10 border border-blue-500/20">
+   328→            <Hash className="w-6 h-6 text-blue-400" />
+   329→          </div>
+   330→          <h1 className="text-2xl md:text-3xl font-bold gradient-text">
+   331→            Hash Generation
+   332→          </h1>
+   333→        </div>
+   334→        <p className="text-muted-foreground text-sm md:text-base max-w-2xl mx-auto">
+   335→          Generate cryptographic hashes using multiple algorithms simultaneously.
+   336→          Compare results, verify integrity, and export your findings.
+   337→        </p>
+   338→      </motion.div>
+   339→
+   340→      {/* ── Input Section ── */}
+   341→      <motion.div
+   342→        initial={{ opacity: 0, y: 20 }}
+   343→        animate={{ opacity: 1, y: 0 }}
+   344→        transition={{ duration: 0.5, delay: 0.1 }}
+   345→      >
+   346→        <Card className="glass-card border-0">
+   347→          <CardHeader className="pb-3">
+   348→            <div className="flex items-center justify-between">
+   349→              <CardTitle className="text-base font-semibold text-foreground flex items-center gap-2">
+   350→                <Type className="w-4 h-4 text-cf-blue" />
+   351→                Input Data
+   352→              </CardTitle>
+   353→              <div className="flex items-center gap-2">
+   354→                {/* Input mode toggle */}
+   355→                <div className="flex items-center rounded-lg bg-white/5 border border-white/10 p-0.5">
+   356→                  <button
+   357→                    onClick={() => setInputMode('text')}
+   358→                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+   359→                      inputMode === 'text'
+   360→                        ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30'
+   361→                        : 'text-muted-foreground hover:text-foreground'
+   362→                    }`}
+   363→                  >
+   364→                    <Type className="w-3.5 h-3.5" />
+   365→                    Text Input
+   366→                  </button>
+   367→                  <button
+   368→                    onClick={() => setInputMode('file')}
+   369→                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+   370→                      inputMode === 'file'
+   371→                        ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30'
+   372→                        : 'text-muted-foreground hover:text-foreground'
+   373→                    }`}
+   374→                  >
+   375→                    <FileText className="w-3.5 h-3.5" />
+   376→                    File Input
+   377→                  </button>
+   378→                </div>
+   379→                {inputText && (
+   380→                  <Button
+   381→                    variant="ghost"
+   382→                    size="sm"
+   383→                    onClick={clearInput}
+   384→                    className="h-8 text-xs text-muted-foreground hover:text-red-400"
+   385→                  >
+   386→                    <Trash2 className="w-3.5 h-3.5 mr-1" />
+   387→                    Clear
+   388→                  </Button>
+   389→                )}
+   390→              </div>
+   391→            </div>
+   392→          </CardHeader>
+   393→          <CardContent>
+   394→            <AnimatePresence mode="wait">
+   395→              {inputMode === 'text' ? (
+   396→                <motion.div
+   397→                  key="text-input"
+   398→                  initial={{ opacity: 0, x: -10 }}
+   399→                  animate={{ opacity: 1, x: 0 }}
+   400→                  exit={{ opacity: 0, x: 10 }}
+   401→                  transition={{ duration: 0.2 }}
+   402→                >
+   403→                  <Textarea
+   404→                    value={inputText}
+   405→                    onChange={(e) => setInputText(e.target.value)}
+   406→                    placeholder="Enter text to hash..."
+   407→                    className="min-h-[120px] bg-white/5 border-white/10 text-foreground placeholder:text-muted-foreground/50 focus:border-blue-500/40 focus:ring-blue-500/20 resize-y font-mono text-sm"
+   408→                  />
+   409→                </motion.div>
+   410→              ) : (
+   411→                <motion.div
+   412→                  key="file-input"
+   413→                  initial={{ opacity: 0, x: 10 }}
+   414→                  animate={{ opacity: 1, x: 0 }}
+   415→                  exit={{ opacity: 0, x: -10 }}
+   416→                  transition={{ duration: 0.2 }}
+   417→                >
+   418→                  <div
+   419→                    onDragOver={handleDragOver}
+   420→                    onDragLeave={handleDragLeave}
+   421→                    onDrop={handleDrop}
+   422→                    className={`min-h-[120px] border-2 border-dashed rounded-xl flex flex-col items-center justify-center gap-3 transition-all cursor-pointer ${
+   423→                      isDragOver
+   424→                        ? 'border-blue-400 bg-blue-500/10'
+   425→                        : 'border-white/15 bg-white/[0.02] hover:border-white/25 hover:bg-white/[0.04]'
+   426→                    }`}
+   427→                  >
+   428→                    <div
+   429→                      className={`p-3 rounded-full transition-colors ${
+   430→                        isDragOver ? 'bg-blue-500/20' : 'bg-white/5'
+   431→                      }`}
+   432→                    >
+   433→                      <FileText
+   434→                        className={`w-8 h-8 transition-colors ${
+   435→                          isDragOver ? 'text-blue-400' : 'text-muted-foreground'
+   436→                        }`}
+   437→                      />
+   438→                    </div>
+   439→                    <div className="text-center">
+   440→                      <p className="text-sm font-medium text-foreground">
+   441→                        {isDragOver
+   442→                          ? 'Drop file here'
+   443→                          : 'Drag & drop a file here'}
+   444→                      </p>
+   445→                      <p className="text-xs text-muted-foreground mt-1">
+   446→                        or click to browse — file contents will be hashed
+   447→                      </p>
+   448→                    </div>
+   449→                  </div>
+   450→                </motion.div>
+   451→              )}
+   452→            </AnimatePresence>
+   453→          </CardContent>
+   454→        </Card>
+   455→      </motion.div>
+   456→
+   457→      {/* ── Algorithm Selection ── */}
+   458→      <motion.div
+   459→        initial={{ opacity: 0, y: 20 }}
+   460→        animate={{ opacity: 1, y: 0 }}
+   461→        transition={{ duration: 0.5, delay: 0.2 }}
+   462→      >
+   463→        <Card className="glass-card border-0">
+   464→          <CardHeader className="pb-3">
+   465→            <div className="flex items-center justify-between flex-wrap gap-2">
+   466→              <CardTitle className="text-base font-semibold text-foreground flex items-center gap-2">
+   467→                <Hash className="w-4 h-4 text-cf-cyan" />
+   468→                Algorithm Selection
+   469→                <Badge
+   470→                  variant="outline"
+   471→                  className="ml-1 text-[10px] border-white/10 text-muted-foreground"
+   472→                >
+   473→                  {selectedAlgorithms.size} selected
+   474→                </Badge>
+   475→              </CardTitle>
+   476→              <div className="flex items-center gap-2">
+   477→                <Button
+   478→                  variant="ghost"
+   479→                  size="sm"
+   480→                  onClick={
+   481→                    allFilteredSelected
+   482→                      ? deselectAllFiltered
+   483→                      : selectAllFiltered
+   484→                  }
+   485→                  className="h-7 text-xs text-muted-foreground hover:text-blue-400"
+   486→                >
+   487→                  {allFilteredSelected ? 'Deselect All' : 'Select All'}
+   488→                </Button>
+   489→              </div>
+   490→            </div>
+   491→          </CardHeader>
+   492→          <CardContent className="space-y-4">
+   493→            {/* Category tabs */}
+   494→            <Tabs
+   495→              value={activeCategory}
+   496→              onValueChange={(v) => setActiveCategory(v as CategoryTab)}
+   497→            >
+   498→              <TabsList className="bg-white/5 border border-white/10 h-9 p-0.5">
+   499→                {CATEGORY_TABS.map((tab) => (
+   500→                  <TabsTrigger
+   501→                    key={tab}
+   502→                    value={tab}
+   503→                    className="text-xs px-3 py-1.5 data-[state=active]:bg-blue-600/20 data-[state=active]:text-blue-400 data-[state=active]:border data-[state=active]:border-blue-500/30 rounded-md transition-all"
+   504→                  >
+   505→                    {tab}
+   506→                  </TabsTrigger>
+   507→                ))}
+   508→              </TabsList>
+   509→
+   510→              {/* Algorithm grid - same grid for all tabs */}
+   511→              <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+   512→                <AnimatePresence mode="popLayout">
+   513→                  {filteredAlgorithms.map((algo) => {
+   514→                    const isSelected = selectedAlgorithms.has(algo.name);
+   515→                    const sec = SECURITY_CONFIG[algo.security];
+   516→
+   517→                    return (
+   518→                      <motion.button
+   519→                        key={algo.name}
+   520→                        layout
+   521→                        initial={{ opacity: 0, scale: 0.95 }}
+   522→                        animate={{ opacity: 1, scale: 1 }}
+   523→                        exit={{ opacity: 0, scale: 0.95 }}
+   524→                        transition={{ duration: 0.15 }}
+   525→                        onClick={() => toggleAlgorithm(algo.name)}
+   526→                        className={`flex items-center gap-3 p-3 rounded-xl text-left transition-all border ${
+   527→                          isSelected
+   528→                            ? 'bg-blue-600/10 border-blue-500/30 shadow-lg shadow-blue-500/5'
+   529→                            : 'bg-white/[0.02] border-white/[0.06] hover:bg-white/[0.04] hover:border-white/10'
+   530→                        }`}
+   531→                      >
+   532→                        {/* Checkbox visual */}
+   533→                        <div
+   534→                          className={`flex-shrink-0 w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all ${
+   535→                            isSelected
+   536→                              ? 'bg-blue-600 border-blue-500'
+   537→                              : 'border-white/20'
+   538→                          }`}
+   539→                        >
+   540→                          {isSelected && (
+   541→                            <Check className="w-3 h-3 text-white" />
+   542→                          )}
+   543→                        </div>
+   544→
+   545→                        {/* Info */}
+   546→                        <div className="flex-1 min-w-0">
+   547→                          <div className="flex items-center gap-2">
+   548→                            <span className="text-sm font-medium text-foreground truncate">
+   549→                              {algo.name}
+   550→                            </span>
+   551→                          </div>
+   552→                          <div className="flex items-center gap-1.5 mt-1">
+   553→                            <Badge
+   554→                              variant="outline"
+   555→                              className="text-[9px] px-1.5 py-0 h-4 border-white/10 text-muted-foreground"
+   556→                            >
+   557→                              {algo.category}
+   558→                            </Badge>
+   559→                            <Badge
+   560→                              variant="outline"
+   561→                              className="text-[9px] px-1.5 py-0 h-4 border-white/10 text-muted-foreground"
+   562→                            >
+   563→                              {algo.outputSize}-bit
+   564→                            </Badge>
+   565→                            <Badge
+   566→                              variant="outline"
+   567→                              className={`text-[9px] px-1.5 py-0 h-4 ${sec.bgColor} ${sec.borderColor} ${sec.color}`}
+   568→                            >
+   569→                              {sec.label}
+   570→                            </Badge>
+   571→                          </div>
+   572→                        </div>
+   573→                      </motion.button>
+   574→                    );
+   575→                  })}
+   576→                </AnimatePresence>
+   577→              </div>
+   578→            </Tabs>
+   579→          </CardContent>
+   580→        </Card>
+   581→      </motion.div>
+   582→
+   583→      {/* ── Generate Button ── */}
+   584→      <motion.div
+   585→        initial={{ opacity: 0, y: 20 }}
+   586→        animate={{ opacity: 1, y: 0 }}
+   587→        transition={{ duration: 0.5, delay: 0.3 }}
+   588→        className="flex justify-center"
+   589→      >
+   590→        <Button
+   591→          onClick={generateHashes}
+   592→          disabled={
+   593→            !inputText.trim() || selectedAlgorithms.size === 0 || isGenerating
+   594→          }
+   595→          className="px-8 py-5 h-auto text-sm font-semibold rounded-xl bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 shadow-lg shadow-blue-600/20 transition-all disabled:opacity-40 disabled:shadow-none"
+   596→        >
+   597→          {isGenerating ? (
+   598→            <motion.div
+   599→              animate={{ rotate: 360 }}
+   600→              transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+   601→              className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full mr-2"
+   602→            />
+   603→          ) : (
+   604→            <Hash className="w-4 h-4 mr-2" />
+   605→          )}
+   606→          {isGenerating
+   607→            ? 'Generating...'
+   608→            : `Generate Hash${selectedAlgorithms.size > 1 ? 'es' : ''}`}
+   609→        </Button>
+   610→      </motion.div>
+   611→
+   612→      {/* ── Results Section ── */}
+   613→      <AnimatePresence>
+   614→        {hashResults.length > 0 && (
+   615→          <motion.div
+   616→            initial={{ opacity: 0, y: 30 }}
+   617→            animate={{ opacity: 1, y: 0 }}
+   618→            exit={{ opacity: 0, y: 30 }}
+   619→            transition={{ duration: 0.4 }}
+   620→          >
+   621→            <Card className="glass-card border-0">
+   622→              <CardHeader className="pb-3">
+   623→                <div className="flex items-center justify-between flex-wrap gap-2">
+   624→                  <CardTitle className="text-base font-semibold text-foreground flex items-center gap-2">
+   625→                    <Hash className="w-4 h-4 text-cf-green" />
+   626→                    Hash Results
+   627→                    <Badge
+   628→                      variant="outline"
+   629→                      className="text-[10px] border-white/10 text-muted-foreground"
+   630→                    >
+   631→                      {hashResults.length} algorithm
+   632→                      {hashResults.length !== 1 ? 's' : ''}
+   633→                    </Badge>
+   634→                  </CardTitle>
+   635→                  <div className="flex items-center gap-2">
+   636→                    <Button
+   637→                      variant="ghost"
+   638→                      size="sm"
+   639→                      onClick={copyAll}
+   640→                      className="h-8 text-xs text-muted-foreground hover:text-cf-cyan"
+   641→                    >
+   642→                      {copiedAll ? (
+   643→                        <Check className="w-3.5 h-3.5 mr-1 text-cf-green" />
+   644→                      ) : (
+   645→                        <Copy className="w-3.5 h-3.5 mr-1" />
+   646→                      )}
+   647→                      {copiedAll ? 'Copied!' : 'Copy All'}
+   648→                    </Button>
+   649→                    <Button
+   650→                      variant="ghost"
+   651→                      size="sm"
+   652→                      onClick={exportResults}
+   653→                      className="h-8 text-xs text-muted-foreground hover:text-cf-blue"
+   654→                    >
+   655→                      <Download className="w-3.5 h-3.5 mr-1" />
+   656→                      Export
+   657→                    </Button>
+   658→                  </div>
+   659→                </div>
+   660→              </CardHeader>
+   661→              <CardContent>
+   662→                <div className="space-y-3 max-h-[600px] overflow-y-auto custom-scrollbar pr-1">
+   663→                  <AnimatePresence>
+   664→                    {hashResults.map((result, index) => {
+   665→                      const sec = SECURITY_CONFIG[result.algorithm.security];
+   666→                      const isMatch =
+   667→                        compareHash.trim() !== '' &&
+   668→                        result.hash.toLowerCase() ===
+   669→                          compareHash.trim().toLowerCase();
+   670→                      const isCopied = copiedId === result.algorithm.name;
+   671→
+   672→                      return (
+   673→                        <motion.div
+   674→                          key={result.algorithm.name}
+   675→                          initial={{ opacity: 0, x: -20 }}
+   676→                          animate={{ opacity: 1, x: 0 }}
+   677→                          exit={{ opacity: 0, x: 20 }}
+   678→                          transition={{
+   679→                            duration: 0.3,
+   680→                            delay: index * 0.05,
+   681→                          }}
+   682→                          className={`glass-card rounded-xl p-4 transition-all ${
+   683→                            isMatch
+   684→                              ? 'ring-2 ring-green-500/40 bg-green-500/5'
+   685→                              : ''
+   686→                          }`}
+   687→                        >
+   688→                          <div className="flex items-start justify-between gap-3">
+   689→                            <div className="flex-1 min-w-0">
+   690→                              {/* Algorithm header */}
+   691→                              <div className="flex items-center gap-2 mb-2 flex-wrap">
+   692→                                <span className="text-sm font-semibold text-foreground">
+   693→                                  {result.algorithm.name}
+   694→                                </span>
+   695→                                <Badge
+   696→                                  variant="outline"
+   697→                                  className={`text-[9px] px-1.5 py-0 h-4 ${sec.bgColor} ${sec.borderColor} ${sec.color}`}
+   698→                                >
+   699→                                  {sec.label}
+   700→                                </Badge>
+   701→                                <Badge
+   702→                                  variant="outline"
+   703→                                  className="text-[9px] px-1.5 py-0 h-4 border-white/10 text-muted-foreground"
+   704→                                >
+   705→                                  {result.algorithm.outputSize}-bit
+   706→                                </Badge>
+   707→                                {isMatch && (
+   708→                                  <Badge className="text-[9px] px-1.5 py-0 h-4 bg-green-500/20 text-green-400 border border-green-500/30">
+   709→                                    Match
+   710→                                  </Badge>
+   711→                                )}
+   712→                              </div>
+   713→
+   714→                              {/* Hash value */}
+   715→                              <div className="bg-black/30 rounded-lg p-3 border border-white/[0.04]">
+   716→                                <p className="result-display text-foreground/90 select-all">
+   717→                                  {result.hash}
+   718→                                </p>
+   719→                              </div>
+   720→                            </div>
+   721→
+   722→                            {/* Copy button */}
+   723→                            <Button
+   724→                              variant="ghost"
+   725→                              size="sm"
+   726→                              onClick={() =>
+   727→                                copyToClipboard(
+   728→                                  result.hash,
+   729→                                  result.algorithm.name
+   730→                                )
+   731→                              }
+   732→                              className={`flex-shrink-0 h-8 w-8 p-0 ${
+   733→                                isCopied
+   734→                                  ? 'text-green-400'
+   735→                                  : 'text-muted-foreground hover:text-blue-400'
+   736→                              }`}
+   737→                            >
+   738→                              {isCopied ? (
+   739→                                <Check className="w-4 h-4" />
+   740→                              ) : (
+   741→                                <Copy className="w-4 h-4" />
+   742→                              )}
+   743→                            </Button>
+   744→                          </div>
+   745→                        </motion.div>
+   746→                      );
+   747→                    })}
+   748→                  </AnimatePresence>
+   749→                </div>
+   750→              </CardContent>
+   751→            </Card>
+   752→          </motion.div>
+   753→        )}
+   754→      </AnimatePresence>
+   755→
+   756→      {/* ── Hash Comparison Tool ── */}
+   757→      <motion.div
+   758→        initial={{ opacity: 0, y: 20 }}
+   759→        animate={{ opacity: 1, y: 0 }}
+   760→        transition={{ duration: 0.5, delay: 0.4 }}
+   761→      >
+   762→        <Card className="glass-card border-0">
+   763→          <CardHeader
+   764→            className="cursor-pointer select-none"
+   765→            onClick={() => setShowComparison(!showComparison)}
+   766→          >
+   767→            <div className="flex items-center justify-between">
+   768→              <CardTitle className="text-base font-semibold text-foreground flex items-center gap-2">
+   769→                <GitCompareArrows className="w-4 h-4 text-cf-amber" />
+   770→                Hash Comparison
+   771→              </CardTitle>
+   772→              <motion.div
+   773→                animate={{ rotate: showComparison ? 180 : 0 }}
+   774→                transition={{ duration: 0.2 }}
+   775→              >
+   776→                <ChevronDown className="w-4 h-4 text-muted-foreground" />
+   777→              </motion.div>
+   778→            </div>
+   779→          </CardHeader>
+   780→          <AnimatePresence>
+   781→            {showComparison && (
+   782→              <motion.div
+   783→                initial={{ height: 0, opacity: 0 }}
+   784→                animate={{ height: 'auto', opacity: 1 }}
+   785→                exit={{ height: 0, opacity: 0 }}
+   786→                transition={{ duration: 0.25 }}
+   787→                className="overflow-hidden"
+   788→              >
+   789→                <CardContent className="pt-0 space-y-3">
+   790→                  <p className="text-xs text-muted-foreground">
+   791→                    Enter a hash value to compare against generated results.
+   792→                    Matching hashes will be highlighted in the results above.
+   793→                  </p>
+   794→                  <div className="flex gap-2">
+   795→                    <Input
+   796→                      value={compareHash}
+   797→                      onChange={(e) => setCompareHash(e.target.value)}
+   798→                      placeholder="Paste hash to compare..."
+   799→                      className="bg-white/5 border-white/10 font-mono text-sm focus:border-amber-500/40 focus:ring-amber-500/20"
+   800→                    />
+   801→                    {compareHash && (
+   802→                      <Button
+   803→                        variant="ghost"
+   804→                        size="sm"
+   805→                        onClick={() => setCompareHash('')}
+   806→                        className="flex-shrink-0 text-muted-foreground hover:text-red-400"
+   807→                      >
+   808→                        <Trash2 className="w-3.5 h-3.5" />
+   809→                      </Button>
+   810→                    )}
+   811→                  </div>
+   812→                  {compareHash.trim() && hashResults.length > 0 && (
+   813→                    <motion.div
+   814→                      initial={{ opacity: 0 }}
+   815→                      animate={{ opacity: 1 }}
+   816→                      className="space-y-1"
+   817→                    >
+   818→                      {hashResults.map((result) => {
+   819→                        const isMatch =
+   820→                          result.hash.toLowerCase() ===
+   821→                          compareHash.trim().toLowerCase();
+   822→                        return (
+   823→                          <div
+   824→                            key={result.algorithm.name}
+   825→                            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs ${
+   826→                              isMatch
+   827→                                ? 'bg-green-500/10 text-green-400'
+   828→                                : 'bg-white/[0.02] text-muted-foreground'
+   829→                            }`}
+   830→                          >
+   831→                            <div
+   832→                              className={`w-2 h-2 rounded-full ${
+   833→                                isMatch ? 'bg-green-400' : 'bg-white/20'
+   834→                              }`}
+   835→                            />
+   836→                            <span className="font-medium">
+   837→                              {result.algorithm.name}
+   838→                            </span>
+   839→                            <span className="font-mono text-[10px] opacity-60">
+   840→                              {truncateMiddle(result.hash, 20)}
+   841→                            </span>
+   842→                            {isMatch && (
+   843→                              <span className="ml-auto text-[10px] font-semibold">
+   844→                                MATCH
+   845→                              </span>
+   846→                            )}
+   847→                          </div>
+   848→                        );
+   849→                      })}
+   850→                    </motion.div>
+   851→                  )}
+   852→                </CardContent>
+   853→              </motion.div>
+   854→            )}
+   855→          </AnimatePresence>
+   856→        </Card>
+   857→      </motion.div>
+   858→
+   859→      {/* ── Hash History ── */}
+   860→      <motion.div
+   861→        initial={{ opacity: 0, y: 20 }}
+   862→        animate={{ opacity: 1, y: 0 }}
+   863→        transition={{ duration: 0.5, delay: 0.5 }}
+   864→      >
+   865→        <Card className="glass-card border-0">
+   866→          <CardHeader
+   867→            className="cursor-pointer select-none"
+   868→            onClick={() => setShowHistory(!showHistory)}
+   869→          >
+   870→            <div className="flex items-center justify-between">
+   871→              <CardTitle className="text-base font-semibold text-foreground flex items-center gap-2">
+   872→                <History className="w-4 h-4 text-cf-cyan" />
+   873→                Hash History
+   874→                {history.length > 0 && (
+   875→                  <Badge
+   876→                    variant="outline"
+   877→                    className="text-[10px] border-white/10 text-muted-foreground"
+   878→                  >
+   879→                    {history.length}
+   880→                  </Badge>
+   881→                )}
+   882→              </CardTitle>
+   883→              <motion.div
+   884→                animate={{ rotate: showHistory ? 180 : 0 }}
+   885→                transition={{ duration: 0.2 }}
+   886→              >
+   887→                <ChevronUp className="w-4 h-4 text-muted-foreground" />
+   888→              </motion.div>
+   889→            </div>
+   890→          </CardHeader>
+   891→          <AnimatePresence>
+   892→            {showHistory && (
+   893→              <motion.div
+   894→                initial={{ height: 0, opacity: 0 }}
+   895→                animate={{ height: 'auto', opacity: 1 }}
+   896→                exit={{ height: 0, opacity: 0 }}
+   897→                transition={{ duration: 0.25 }}
+   898→                className="overflow-hidden"
+   899→              >
+   900→                <CardContent className="pt-0">
+   901→                  {history.length === 0 ? (
+   902→                    <div className="text-center py-8 text-muted-foreground text-sm">
+   903→                      <History className="w-8 h-8 mx-auto mb-2 opacity-30" />
+   904→                      <p>No hash history yet</p>
+   905→                      <p className="text-xs opacity-60 mt-1">
+   906→                        Generated hashes will appear here
+   907→                      </p>
+   908→                    </div>
+   909→                  ) : (
+   910→                    <div className="space-y-2 max-h-72 overflow-y-auto custom-scrollbar">
+   911→                      <div className="flex justify-end mb-1">
+   912→                        <Button
+   913→                          variant="ghost"
+   914→                          size="sm"
+   915→                          onClick={clearHistory}
+   916→                          className="h-7 text-xs text-muted-foreground hover:text-red-400"
+   917→                        >
+   918→                          <Trash2 className="w-3 h-3 mr-1" />
+   919→                          Clear History
+   920→                        </Button>
+   921→                      </div>
+   922→                      {history.map((entry) => (
+   923→                        <motion.button
+   924→                          key={entry.id}
+   925→                          onClick={() => loadFromHistory(entry)}
+   926→                          className="w-full text-left glass-card rounded-xl p-3 hover:bg-white/[0.04] transition-all group"
+   927→                          whileHover={{ scale: 1.005 }}
+   928→                          whileTap={{ scale: 0.995 }}
+   929→                        >
+   930→                          <div className="flex items-start justify-between gap-2">
+   931→                            <div className="min-w-0 flex-1">
+   932→                              <p className="text-xs text-foreground/80 font-medium truncate">
+   933→                                &quot;{entry.inputPreview}&quot;
+   934→                              </p>
+   935→                              <div className="flex items-center gap-1 mt-1 flex-wrap">
+   936→                                {entry.algorithms.slice(0, 4).map((algo) => (
+   937→                                  <Badge
+   938→                                    key={algo}
+   939→                                    variant="outline"
+   940→                                    className="text-[8px] px-1 py-0 h-3.5 border-white/10 text-muted-foreground"
+   941→                                  >
+   942→                                    {algo}
+   943→                                  </Badge>
+   944→                                ))}
+   945→                                {entry.algorithms.length > 4 && (
+   946→                                  <span className="text-[8px] text-muted-foreground">
+   947→                                    +{entry.algorithms.length - 4} more
+   948→                                  </span>
+   949→                                )}
+   950→                              </div>
+   951→                            </div>
+   952→                            <span className="text-[10px] text-muted-foreground/50 flex-shrink-0">
+   953→                              {entry.timestamp.toLocaleTimeString()}
+   954→                            </span>
+   955→                          </div>
+   956→                        </motion.button>
+   957→                      ))}
+   958→                    </div>
+   959→                  )}
+   960→                </CardContent>
+   961→              </motion.div>
+   962→            )}
+   963→          </AnimatePresence>
+   964→        </Card>
+   965→      </motion.div>
+   966→    </div>
+   967→  );
+   968→}
+   969→
