@@ -1,0 +1,6 @@
+1:"$Sreact.fragment"
+2:I[97367,["/CryptoForge/_next/static/chunks/2f236954d6a65e12.js"],"ViewportBoundary"]
+3:I[97367,["/CryptoForge/_next/static/chunks/2f236954d6a65e12.js"],"MetadataBoundary"]
+4:"$Sreact.suspense"
+5:I[27201,["/CryptoForge/_next/static/chunks/2f236954d6a65e12.js"],"IconMark"]
+0:{"buildId":"d03jv5knba4TyNdT3-Tzg","rsc":["$","$1","h",{"children":[null,["$","$L2",null,{"children":[["$","meta","0",{"charSet":"utf-8"}],["$","meta","1",{"name":"viewport","content":"width=device-width, initial-scale=1"}]]}],["$","div",null,{"hidden":true,"children":["$","$L3",null,{"children":["$","$4",null,{"name":"Next.Metadata","children":[["$","title","0",{"children":"CryptoForge - Enterprise Cryptography Laboratory"}],["$","meta","1",{"name":"description","content":"Generate, verify, encrypt, decrypt, and analyze cryptographic algorithms from a single platform. Enterprise-grade cryptography tools."}],["$","meta","2",{"name":"keywords","content":"cryptography,hashing,encryption,AES,SHA,RSA,security,crypto tools"}],["$","link","3",{"rel":"icon","href":"/CryptoForge/logo.png"}],["$","link","4",{"rel":"apple-touch-icon","href":"/CryptoForge/logo.png"}],["$","$L5","5",{}]]}]}]}],["$","meta",null,{"name":"next-size-adjust","content":""}]]}],"loading":null,"isPartial":false}
