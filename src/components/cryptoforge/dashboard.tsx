@@ -31,6 +31,9 @@ import {
 } from '@/components/ui/select';
 import { computeHash } from '@/lib/crypto';
 
+// Logo path helper (handles GitHub Pages basePath)
+const LOGO_SRC = `${process.env.NEXT_PUBLIC_BASE_PATH || ''}/logo.png`;
+
 interface DashboardProps {
   onNavigate: (page: string) => void;
 }
@@ -294,7 +297,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
               className="mb-8"
             >
               <img
-                src="/logo.png"
+                src={LOGO_SRC}
                 alt="CryptoForge Logo"
                 className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl object-cover shadow-2xl shadow-[#2563EB]/20 border border-white/10"
               />
@@ -721,7 +724,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
       <footer className="border-t border-white/5 py-8">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
-            <img src="/logo.png" alt="CryptoForge" className="h-6 w-6 rounded object-cover" />
+            <img src={LOGO_SRC} alt="CryptoForge" className="h-6 w-6 rounded object-cover" />
             <span className="font-semibold text-foreground">CryptoForge</span>
           </div>
           <p className="text-sm text-muted-foreground">

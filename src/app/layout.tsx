@@ -12,13 +12,15 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
+
 export const metadata: Metadata = {
   title: "CryptoForge - Enterprise Cryptography Laboratory",
   description: "Generate, verify, encrypt, decrypt, and analyze cryptographic algorithms from a single platform. Enterprise-grade cryptography tools.",
   keywords: ["cryptography", "hashing", "encryption", "AES", "SHA", "RSA", "security", "crypto tools"],
   icons: {
-    icon: "/logo.png",
-    apple: "/logo.png",
+    icon: `${basePath}/logo.png`,
+    apple: `${basePath}/logo.png`,
   },
 };
 

@@ -11,6 +11,9 @@ import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
+// Logo path helper (handles GitHub Pages basePath)
+const LOGO_SRC = `${process.env.NEXT_PUBLIC_BASE_PATH || ''}/logo.png`;
+
 import { Dashboard } from '@/components/cryptoforge/dashboard';
 import { Hashing } from '@/components/cryptoforge/hashing';
 import { HashIdentifier } from '@/components/cryptoforge/hash-identifier';
@@ -120,7 +123,7 @@ export default function Home() {
               animate={{ opacity: 1 }}
             >
               <div className="flex items-center justify-center w-9 h-9 rounded-xl overflow-hidden bg-gradient-to-br from-[#2563EB]/20 to-[#06B6D4]/20 border border-white/[0.08] shrink-0">
-                <img src="/logo.png" alt="CryptoForge" className="w-full h-full object-cover" />
+                <img src={LOGO_SRC} alt="CryptoForge" className="w-full h-full object-cover" />
               </div>
               <AnimatePresence>
                 {sidebarOpen && (
@@ -289,7 +292,7 @@ export default function Home() {
               <div className="flex items-center h-16 px-4 border-b border-white/[0.06]">
                 <div className="flex items-center gap-3">
                   <div className="flex items-center justify-center w-9 h-9 rounded-xl overflow-hidden bg-gradient-to-br from-[#2563EB]/20 to-[#06B6D4]/20 border border-white/[0.08]">
-                    <img src="/logo.png" alt="CryptoForge" className="w-full h-full object-cover" />
+                    <img src={LOGO_SRC} alt="CryptoForge" className="w-full h-full object-cover" />
                   </div>
                   <span className="text-base font-bold gradient-text">CryptoForge</span>
                 </div>
@@ -351,7 +354,7 @@ export default function Home() {
 
             {/* Breadcrumb */}
             <div className="flex items-center gap-2 text-sm">
-              <img src="/logo.png" alt="CryptoForge" className="w-6 h-6 rounded object-cover" />
+              <img src={LOGO_SRC} alt="CryptoForge" className="w-6 h-6 rounded object-cover" />
               <span className="text-muted-foreground">CryptoForge</span>
               <span className="text-muted-foreground/40">/</span>
               <span className="text-foreground font-medium">{currentItem?.label}</span>
