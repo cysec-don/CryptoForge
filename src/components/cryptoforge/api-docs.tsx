@@ -16,7 +16,6 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 
@@ -44,206 +43,219 @@ const ENDPOINTS: Endpoint[] = [
     path: '/api/hash',
     title: 'Generate Hash',
     description:
-      'Compute a cryptographic hash of the given input data using the specified algorithm.',
+      'Compute a cryptographic hash of the given input using the specified algorithm. Supports MD4, MD5, SHA1, SHA224, SHA256, SHA384, SHA512, SHA3-224, SHA3-256, SHA3-384, SHA3-512, and RIPEMD160.',
     requestBody: {
-      data: 'Hello, CryptoForge!',
-      algorithm: 'sha-256',
+      input: 'Hello, CryptoForge!',
+      algorithm: 'SHA256',
     },
     responseBody: {
-      algorithm: 'sha-256',
-      hash: 'a591a6d40bf420404a011733cfb7b190d62c65bf0bcda32b57b277d9ad9f146',
-      data: 'Hello, CryptoForge!',
+      algorithm: 'SHA256',
+      input: 'Hello, CryptoForge!',
+      hash: 'ec86cc5d5182bb8bf8523e2498a956f36cbdc0f8d1fa1a2891e98fffe6c9c666',
+      timestamp: '2025-01-15T12:00:00.000Z',
     },
-    curl: `curl -X POST https://api.cryptoforge.dev/api/hash \\
-  -H "Authorization: Bearer YOUR_API_KEY" \\
+    curl: `curl -X POST http://localhost:3000/api/hash \\
   -H "Content-Type: application/json" \\
-  -d '{"data":"Hello, CryptoForge!","algorithm":"sha-256"}'`,
+  -d '{"input":"Hello, CryptoForge!","algorithm":"SHA256"}'`,
   },
   {
     method: 'POST',
     path: '/api/encrypt',
     title: 'Encrypt Data',
     description:
-      'Encrypt plaintext data using the specified algorithm and key. Returns the ciphertext along with the IV used.',
+      'Encrypt plaintext data using AES-CBC with a UTF-8 key (padded to 32 characters). Returns the ciphertext as a colon-delimited "iv_hex:base64_ciphertext" string. AES-GCM requires the browser Web Crypto API and is not supported server-side.',
     requestBody: {
       plaintext: 'Sensitive information',
-      algorithm: 'aes-256-gcm',
-      key: 'base64-encoded-key',
+      key: 'my-secret-key',
+      mode: 'AES-CBC',
     },
     responseBody: {
-      algorithm: 'aes-256-gcm',
-      ciphertext: 'base64-encoded-ciphertext',
-      iv: 'base64-encoded-iv',
-      tag: 'base64-encoded-tag',
+      algorithm: 'AES-256-CBC',
+      ciphertext: 'a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4:U2FsdGVkX1+...',
+      iv: 'a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4',
+      timestamp: '2025-01-15T12:00:00.000Z',
     },
-    curl: `curl -X POST https://api.cryptoforge.dev/api/encrypt \\
-  -H "Authorization: Bearer YOUR_API_KEY" \\
+    curl: `curl -X POST http://localhost:3000/api/encrypt \\
   -H "Content-Type: application/json" \\
-  -d '{"plaintext":"Sensitive information","algorithm":"aes-256-gcm","key":"base64-encoded-key"}'`,
+  -d '{"plaintext":"Sensitive information","key":"my-secret-key","mode":"AES-CBC"}'`,
   },
   {
     method: 'POST',
     path: '/api/decrypt',
     title: 'Decrypt Data',
     description:
-      'Decrypt previously encrypted data using the specified algorithm, key, and IV.',
+      'Decrypt previously encrypted data using AES-CBC. The ciphertext must be in the "iv_hex:base64_ciphertext" format returned by the encrypt endpoint, using the same key.',
     requestBody: {
-      ciphertext: 'base64-encoded-ciphertext',
-      algorithm: 'aes-256-gcm',
-      key: 'base64-encoded-key',
-      iv: 'base64-encoded-iv',
-      tag: 'base64-encoded-tag',
+      ciphertext: 'a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4:U2FsdGVkX1+...',
+      key: 'my-secret-key',
+      mode: 'AES-CBC',
     },
     responseBody: {
-      algorithm: 'aes-256-gcm',
+      algorithm: 'AES-256-CBC',
       plaintext: 'Sensitive information',
+      timestamp: '2025-01-15T12:00:00.000Z',
     },
-    curl: `curl -X POST https://api.cryptoforge.dev/api/decrypt \\
-  -H "Authorization: Bearer YOUR_API_KEY" \\
+    curl: `curl -X POST http://localhost:3000/api/decrypt \\
   -H "Content-Type: application/json" \\
-  -d '{"ciphertext":"base64-encoded-ciphertext","algorithm":"aes-256-gcm","key":"base64-encoded-key","iv":"base64-encoded-iv","tag":"base64-encoded-tag"}'`,
+  -d '{"ciphertext":"a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4:U2FsdGVkX1+...","key":"my-secret-key","mode":"AES-CBC"}'`,
   },
   {
     method: 'POST',
     path: '/api/verify',
     title: 'Verify Hash',
     description:
-      'Verify that the given data matches the provided hash. Returns a boolean result.',
+      'Verify that the given input matches the provided expected hash. Returns a boolean match result along with the computed hash for comparison.',
     requestBody: {
-      data: 'Hello, CryptoForge!',
-      hash: 'a591a6d40bf420404a011733cfb7b190d62c65bf0bcda32b57b277d9ad9f146',
-      algorithm: 'sha-256',
+      input: 'Hello, CryptoForge!',
+      expectedHash: 'ec86cc5d5182bb8bf8523e2498a956f36cbdc0f8d1fa1a2891e98fffe6c9c666',
+      algorithm: 'SHA256',
     },
     responseBody: {
-      algorithm: 'sha-256',
-      verified: true,
+      algorithm: 'SHA256',
+      match: true,
+      computedHash: 'ec86cc5d5182bb8bf8523e2498a956f36cbdc0f8d1fa1a2891e98fffe6c9c666',
+      expectedHash: 'ec86cc5d5182bb8bf8523e2498a956f36cbdc0f8d1fa1a2891e98fffe6c9c666',
+      timestamp: '2025-01-15T12:00:00.000Z',
     },
-    curl: `curl -X POST https://api.cryptoforge.dev/api/verify \\
-  -H "Authorization: Bearer YOUR_API_KEY" \\
+    curl: `curl -X POST http://localhost:3000/api/verify \\
   -H "Content-Type: application/json" \\
-  -d '{"data":"Hello, CryptoForge!","hash":"a591a6d...","algorithm":"sha-256"}'`,
+  -d '{"input":"Hello, CryptoForge!","expectedHash":"ec86cc5d5182bb8bf8523e2498a956f36cbdc0f8d1fa1a2891e98fffe6c9c666","algorithm":"SHA256"}'`,
   },
   {
     method: 'POST',
     path: '/api/hmac',
     title: 'Generate HMAC',
     description:
-      'Generate a Hash-based Message Authentication Code using the specified algorithm and secret key.',
+      'Generate a Hash-based Message Authentication Code using the specified algorithm and secret key. Supports HMAC-MD5, HMAC-SHA1, HMAC-SHA224, HMAC-SHA256, HMAC-SHA384, HMAC-SHA512, and HMAC-RIPEMD160. Optionally pass expectedHmac to verify a match.',
     requestBody: {
-      data: 'Message to authenticate',
+      message: 'Message to authenticate',
       key: 'my-secret-key',
-      algorithm: 'sha-256',
+      algorithm: 'HMAC-SHA256',
     },
     responseBody: {
-      algorithm: 'sha-256',
-      hmac: 'base64-or-hex-encoded-hmac',
+      algorithm: 'HMAC-SHA256',
+      hmac: 'a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2',
+      timestamp: '2025-01-15T12:00:00.000Z',
     },
-    curl: `curl -X POST https://api.cryptoforge.dev/api/hmac \\
-  -H "Authorization: Bearer YOUR_API_KEY" \\
+    curl: `curl -X POST http://localhost:3000/api/hmac \\
   -H "Content-Type: application/json" \\
-  -d '{"data":"Message to authenticate","key":"my-secret-key","algorithm":"sha-256"}'`,
+  -d '{"message":"Message to authenticate","key":"my-secret-key","algorithm":"HMAC-SHA256"}'`,
   },
   {
     method: 'POST',
     path: '/api/identify',
     title: 'Identify Hash Algorithm',
     description:
-      'Attempt to identify the hash algorithm used to produce the given hash string based on length and character patterns.',
+      'Attempt to identify the hash algorithm used to produce the given hash string based on length and character patterns. Returns possible algorithm candidates with confidence scores.',
     requestBody: {
-      hash: 'a591a6d40bf420404a011733cfb7b190d62c65bf0bcda32b57b277d9ad9f146',
+      hash: 'ec86cc5d5182bb8bf8523e2498a956f36cbdc0f8d1fa1a2891e98fffe6c9c666',
     },
     responseBody: {
-      hash: 'a591a6d40bf420404a011733cfb7b190d62c65bf0bcda32b57b277d9ad9f146',
-      possibleAlgorithms: ['SHA-256', 'SHA3-256'],
-      bitLength: 256,
+      hash: 'ec86cc5d5182bb8bf852...',
+      length: 64,
+      charset: 'hexadecimal',
+      possibleAlgorithms: [
+        {
+          name: 'SHA256',
+          confidence: 85,
+          description: 'SHA-256 hash (256-bit)',
+          hashcatMode: '1400',
+          johnFormat: 'raw-sha256',
+        },
+      ],
+      timestamp: '2025-01-15T12:00:00.000Z',
     },
-    curl: `curl -X POST https://api.cryptoforge.dev/api/identify \\
-  -H "Authorization: Bearer YOUR_API_KEY" \\
+    curl: `curl -X POST http://localhost:3000/api/identify \\
   -H "Content-Type: application/json" \\
-  -d '{"hash":"a591a6d40bf420404a011733cfb7b190d62c65bf0bcda32b57b277d9ad9f146"}'`,
+  -d '{"hash":"ec86cc5d5182bb8bf8523e2498a956f36cbdc0f8d1fa1a2891e98fffe6c9c666"}'`,
   },
   {
     method: 'POST',
     path: '/api/generate-key',
     title: 'Generate Key',
     description:
-      'Generate a cryptographically secure random key of the specified length and encoding.',
+      'Generate a cryptographically secure random key. Supported types: aes, jwt-secret, token, api-key, uuid, and hex. Each type returns metadata describing the generated key.',
     requestBody: {
-      length: 32,
-      encoding: 'base64',
+      type: 'aes',
+      keySize: 256,
     },
     responseBody: {
-      key: 'base64-encoded-key',
-      length: 32,
-      encoding: 'base64',
+      type: 'aes',
+      key: 'a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2',
+      metadata: {
+        algorithm: 'AES-256',
+        keySize: 256,
+        format: 'hex',
+      },
+      timestamp: '2025-01-15T12:00:00.000Z',
     },
-    curl: `curl -X POST https://api.cryptoforge.dev/api/generate-key \\
-  -H "Authorization: Bearer YOUR_API_KEY" \\
+    curl: `curl -X POST http://localhost:3000/api/generate-key \\
   -H "Content-Type: application/json" \\
-  -d '{"length":32,"encoding":"base64"}'`,
+  -d '{"type":"aes","keySize":256}'`,
   },
 ];
 
 const SDK_EXAMPLES: Record<string, string> = {
-  nodejs: `const CryptoForge = require('cryptoforge-sdk');
-
-const client = new CryptoForge('YOUR_API_KEY');
-
-// Generate a SHA-256 hash
-const result = await client.hash({
-  data: 'Hello, CryptoForge!',
-  algorithm: 'sha-256',
+  nodejs: `// Generate a SHA-256 hash
+const res = await fetch('http://localhost:3000/api/hash', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    input: 'Hello, CryptoForge!',
+    algorithm: 'SHA256',
+  }),
 });
 
-console.log(result.hash);
-// => "a591a6d40bf420404a011733cfb7b..."
+const data = await res.json();
+console.log(data.hash);
+// => "ec86cc5d5182bb8bf8523e2498a956f36cbdc0f8d1fa1a2891e98fffe6c9c666"
 
-// Encrypt data
-const encrypted = await client.encrypt({
-  plaintext: 'Sensitive information',
-  algorithm: 'aes-256-gcm',
-  key: 'your-base64-key',
+// Encrypt data (AES-CBC)
+const enc = await fetch('http://localhost:3000/api/encrypt', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    plaintext: 'Sensitive information',
+    key: 'my-secret-key',
+    mode: 'AES-CBC',
+  }),
 });
 
-console.log(encrypted.ciphertext);`,
-  python: `from cryptoforge import CryptoForgeClient
-
-client = CryptoForgeClient("YOUR_API_KEY")
+console.log((await enc.json()).ciphertext);`,
+  python: `import requests
 
 # Generate a SHA-256 hash
-result = client.hash(
-    data="Hello, CryptoForge!",
-    algorithm="sha-256",
+res = requests.post(
+    "http://localhost:3000/api/hash",
+    json={"input": "Hello, CryptoForge!", "algorithm": "SHA256"},
 )
+print(res.json()["hash"])
+# => "ec86cc5d5182bb8bf8523e2498a956f36cbdc0f8d1fa1a2891e98fffe6c9c666"
 
-print(result["hash"])
-# => "a591a6d40bf420404a011733cfb7b..."
-
-# Encrypt data
-encrypted = client.encrypt(
-    plaintext="Sensitive information",
-    algorithm="aes-256-gcm",
-    key="your-base64-key",
+# Encrypt data (AES-CBC)
+enc = requests.post(
+    "http://localhost:3000/api/encrypt",
+    json={
+        "plaintext": "Sensitive information",
+        "key": "my-secret-key",
+        "mode": "AES-CBC",
+    },
 )
-
-print(encrypted["ciphertext"])`,
+print(enc.json()["ciphertext"])`,
   curl: `# Generate a SHA-256 hash
-curl -X POST https://api.cryptoforge.dev/api/hash \\
-  -H "Authorization: Bearer YOUR_API_KEY" \\
+curl -X POST http://localhost:3000/api/hash \\
   -H "Content-Type: application/json" \\
-  -d '{"data":"Hello, CryptoForge!","algorithm":"sha-256"}'
+  -d '{"input":"Hello, CryptoForge!","algorithm":"SHA256"}'
 
-# Encrypt data
-curl -X POST https://api.cryptoforge.dev/api/encrypt \\
-  -H "Authorization: Bearer YOUR_API_KEY" \\
+# Encrypt data (AES-CBC)
+curl -X POST http://localhost:3000/api/encrypt \\
   -H "Content-Type: application/json" \\
-  -d '{"plaintext":"Sensitive info","algorithm":"aes-256-gcm","key":"your-key"}'
+  -d '{"plaintext":"Sensitive information","key":"my-secret-key","mode":"AES-CBC"}'
 
-# Generate a secure key
-curl -X POST https://api.cryptoforge.dev/api/generate-key \\
-  -H "Authorization: Bearer YOUR_API_KEY" \\
+# Generate a secure AES-256 key
+curl -X POST http://localhost:3000/api/generate-key \\
   -H "Content-Type: application/json" \\
-  -d '{"length":32,"encoding":"base64"}'`,
+  -d '{"type":"aes","keySize":256}'`,
 };
 
 /* ------------------------------------------------------------------ */
@@ -441,43 +453,25 @@ export function APIDocs() {
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-sm text-muted-foreground leading-relaxed">
-              All API requests must include a valid API key in the{' '}
+              Authentication is optional when self-hosting. For production
+              deployments, place the API behind a reverse proxy (e.g., Nginx,
+              Cloudflare) and require an API key in the{' '}
               <code className="font-mono text-xs px-1.5 py-0.5 rounded bg-white/5 text-[#06B6D4]">
                 Authorization
               </code>{' '}
-              header using the Bearer scheme.
+              header (Bearer scheme). The included API routes do not enforce
+              authentication by default.
             </p>
             <CodeBlock
               code={`Authorization: Bearer YOUR_API_KEY`}
               language="http"
             />
-            <div className="flex flex-col sm:flex-row gap-4">
-              <div className="flex-1 space-y-2">
-                <label className="text-xs font-medium text-muted-foreground">
-                  Your API Key
-                </label>
-                <div className="flex gap-2">
-                  <Input
-                    readOnly
-                    value="cf_sk_••••••••••••••••••••••••"
-                    className="font-mono text-sm bg-[#0a0e1a] border-white/5"
-                  />
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    className="shrink-0 border-white/10 hover:bg-white/5"
-                  >
-                    <Copy className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-            </div>
             <div className="flex flex-wrap gap-2">
-              <Badge variant="secondary" className="bg-amber-400/10 text-amber-400 border-amber-400/20">
-                Keep your key secret
-              </Badge>
               <Badge variant="secondary" className="bg-[#06B6D4]/10 text-[#06B6D4] border-[#06B6D4]/20">
-                Rotate keys periodically
+                No auth by default
+              </Badge>
+              <Badge variant="secondary" className="bg-amber-400/10 text-amber-400 border-amber-400/20">
+                Use a reverse proxy in production
               </Badge>
             </div>
           </CardContent>

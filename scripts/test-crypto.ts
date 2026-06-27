@@ -244,6 +244,35 @@ assert(computeFNV1('a') === '050c5d7e', 'FNV-1("a")', '050c5d7e', computeFNV1('a
 // MurmurHash3 produces 8 hex chars
 assert(computeMurmurHash3('test').length === 8, 'MurmurHash3 length');
 
+console.log('\n📦 Hash Identifier Tests:');
+
+// Import identifyHash
+const { identifyHash } = await import('../src/lib/crypto');
+
+// MD5 hash identification
+const md5Result = identifyHash('5d41402abc4b2a76b9719d911017c592');
+assert(md5Result.possibleAlgorithms[0]?.name === 'MD5', 'identifyHash MD5', 'MD5', md5Result.possibleAlgorithms[0]?.name);
+
+// SHA-256 hash identification
+const sha256Result = identifyHash('2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae');
+assert(sha256Result.possibleAlgorithms[0]?.name === 'SHA256', 'identifyHash SHA-256', 'SHA256', sha256Result.possibleAlgorithms[0]?.name);
+
+// /etc/shadow entry with MD5 crypt
+const shadowMd5 = identifyHash('msfadmin:$1$XN10Zj2c$Rt/zzCW3mLtUWA.ihZjA5/:14684:0:99999:7:::');
+assert(shadowMd5.parsedStructure?.format === 'shadow', 'Shadow format detected', 'shadow', shadowMd5.parsedStructure?.format);
+assert(shadowMd5.parsedStructure?.username === 'msfadmin', 'Shadow username extracted', 'msfadmin', shadowMd5.parsedStructure?.username);
+assert(shadowMd5.parsedStructure?.salt === 'XN10Zj2c', 'Shadow salt extracted', 'XN10Zj2c', shadowMd5.parsedStructure?.salt);
+assert(shadowMd5.parsedStructure?.algorithmName === 'MD5 crypt (md5crypt)', 'Shadow algorithm identified', 'MD5 crypt (md5crypt)', shadowMd5.parsedStructure?.algorithmName);
+
+// bcrypt hash
+const bcryptResult = identifyHash('$2a$12$WApznUPhDubN0oeveSXHp.bMbgSXNn6q26lHtD9DmJGWvZba1M6em');
+assert(bcryptResult.parsedStructure?.algorithmName === 'bcrypt ($2a)', 'bcrypt parsed', 'bcrypt ($2a)', bcryptResult.parsedStructure?.algorithmName);
+assert(bcryptResult.parsedStructure?.cost === 12, 'bcrypt cost extracted', '12', String(bcryptResult.parsedStructure?.cost));
+
+// SHA-512 crypt shadow entry
+const shadowSha512 = identifyHash('root:$6$xyz123$WVhqjhYYeHj0SjVXWjjJ3w4TvGCSWiBE0kOUHE1y2EWIYnSt6TkE2dJHEX3JEDfOmR9mm.sL6pXx3v/qcSfzs/:19000:0:99999:7:::');
+assert(shadowSha512.parsedStructure?.algorithmName === 'SHA-512 crypt (sha512crypt)', 'Shadow SHA-512 algorithm identified', 'SHA-512 crypt (sha512crypt)', shadowSha512.parsedStructure?.algorithmName);
+
 console.log('\n📦 Asymmetric Cryptography Tests:');
 
 // Ed25519 — sign and verify round-trip
@@ -260,8 +289,6 @@ try {
 } catch (e) {
   assert(false, 'Ed25519 round-trip', 'OK', `ERROR: ${e}`);
 }
-
-// X25519 — ECDH shared secret
 try {
   const alice = await generateX25519KeyPair();
   const bob = await generateX25519KeyPair();

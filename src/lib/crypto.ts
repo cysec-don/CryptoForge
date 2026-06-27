@@ -612,6 +612,25 @@ export async function generateAESKey(keySize: 128 | 192 | 256 = 256): Promise<st
 
 // ====== HASH IDENTIFICATION ======
 
+export interface ParsedHashField {
+  label: string;
+  value: string;
+  color?: string;
+}
+
+export interface ParsedHashStructure {
+  format: string;                // 'shadow', 'colon-separated', 'salted', 'raw'
+  username?: string;
+  algorithmPrefix?: string;
+  algorithmName: string;
+  salt?: string;
+  hashValue: string;
+  cost?: number;
+  shadowFields?: string[];
+  parsedFields: ParsedHashField[];
+  rawHashPart: string;
+}
+
 export interface HashIdentification {
   possibleAlgorithms: {
     name: string;
@@ -622,6 +641,147 @@ export interface HashIdentification {
   }[];
   length: number;
   charset: string;
+  parsedStructure?: ParsedHashStructure;
+}
+
+// Parse $-prefix salted hash into components
+function parseDollarHash(hash: string): { algorithmPrefix: string; algorithmName: string; salt?: string; hashValue: string; cost?: number } | undefined {
+  // bcrypt: $2a$12$22charSalt31charHash
+  const bcryptMatch = hash.match(/^\$(2[aby])\$(\d{2})\$([.\/A-Za-z0-9]{22})([.\/A-Za-z0-9]{31})$/);
+  if (bcryptMatch) {
+    return {
+      algorithmPrefix: `$${bcryptMatch[1]}$${bcryptMatch[2]}$`,
+      algorithmName: `bcrypt ($${bcryptMatch[1]})`,
+      salt: bcryptMatch[3],
+      hashValue: bcryptMatch[4],
+      cost: parseInt(bcryptMatch[2], 10),
+    };
+  }
+  // MD5 crypt: $1$salt$hash
+  const md5cryptMatch = hash.match(/^\$1\$([^$]+)\$(.+)$/);
+  if (md5cryptMatch) {
+    return { algorithmPrefix: '$1$', algorithmName: 'MD5 crypt (md5crypt)', salt: md5cryptMatch[1], hashValue: md5cryptMatch[2] };
+  }
+  // SHA-256 crypt: $5$rounds=N$salt$hash or $5$salt$hash
+  const sha256cryptMatch = hash.match(/^\$5\$(?:rounds=(\d+)\$)?([^$]+)\$(.+)$/);
+  if (sha256cryptMatch) {
+    return { algorithmPrefix: '$5$', algorithmName: 'SHA-256 crypt (sha256crypt)', salt: sha256cryptMatch[2], hashValue: sha256cryptMatch[3], cost: sha256cryptMatch[1] ? parseInt(sha256cryptMatch[1], 10) : 5000 };
+  }
+  // SHA-512 crypt: $6$rounds=N$salt$hash or $6$salt$hash
+  const sha512cryptMatch = hash.match(/^\$6\$(?:rounds=(\d+)\$)?([^$]+)\$(.+)$/);
+  if (sha512cryptMatch) {
+    return { algorithmPrefix: '$6$', algorithmName: 'SHA-512 crypt (sha512crypt)', salt: sha512cryptMatch[2], hashValue: sha512cryptMatch[3], cost: sha512cryptMatch[1] ? parseInt(sha512cryptMatch[1], 10) : 5000 };
+  }
+  // Argon2id: $argon2id$v=N$m=M,t=T,p=P$salt$hash
+  const argon2idMatch = hash.match(/^\$(argon2id)\$v=(\d+)\$m=(\d+),t=(\d+),p=(\d+)\$([^$]+)\$(.+)$/);
+  if (argon2idMatch) {
+    return { algorithmPrefix: `$${argon2idMatch[1]}$`, algorithmName: `Argon2 (${argon2idMatch[1]})`, salt: argon2idMatch[6], hashValue: argon2idMatch[7], cost: parseInt(argon2idMatch[3], 10) };
+  }
+  // Argon2i
+  const argon2iMatch = hash.match(/^\$(argon2i)\$v=(\d+)\$m=(\d+),t=(\d+),p=(\d+)\$([^$]+)\$(.+)$/);
+  if (argon2iMatch) {
+    return { algorithmPrefix: '$argon2i$', algorithmName: 'Argon2i', salt: argon2iMatch[6], hashValue: argon2iMatch[7], cost: parseInt(argon2iMatch[3], 10) };
+  }
+  // NTLM: $NT$hash
+  const ntlmMatch = hash.match(/^\$NT\$([0-9a-fA-F]{32})$/);
+  if (ntlmMatch) return { algorithmPrefix: '$NT$', algorithmName: 'NTLM', hashValue: ntlmMatch[1] };
+  // Apache MD5: $apr1$salt$hash
+  const apr1Match = hash.match(/^\$apr1\$([^$]+)\$(.+)$/);
+  if (apr1Match) return { algorithmPrefix: '$apr1$', algorithmName: 'Apache MD5 (apr1)', salt: apr1Match[1], hashValue: apr1Match[2] };
+  // PHPass: $P$ or $H$
+  const phpassMatch = hash.match(/^\$[PH]\$([.\/A-Za-z0-9]+)$/);
+  if (phpassMatch) {
+    return { algorithmPrefix: hash.substring(0, 4), algorithmName: 'PHPass (WordPress/Drupal)', salt: hash.substring(4, 12), hashValue: hash.substring(12), cost: hash.charCodeAt(3) - 48 };
+  }
+  return undefined;
+}
+
+// Parse compound hash formats like /etc/shadow
+function parseSaltedHash(input: string): ParsedHashStructure | undefined {
+  const trimmed = input.trim();
+  if (!trimmed) return undefined;
+
+  // /etc/shadow format: username:$algo$salt$hash:lastchange:min:max:warn:inactive:expire:reserved
+  if (trimmed.includes(':')) {
+    const colonParts = trimmed.split(':');
+    if (colonParts.length >= 2) {
+      const username = colonParts[0];
+      const hashField = colonParts[1];
+      const shadowFields = colonParts.slice(2);
+      const inner = parseDollarHash(hashField);
+      if (inner) {
+        const fields: ParsedHashField[] = [
+          { label: 'Username', value: username, color: '#3B82F6' },
+          { label: 'Algorithm', value: inner.algorithmName, color: '#06B6D4' },
+        ];
+        if (inner.salt) fields.push({ label: 'Salt', value: inner.salt, color: '#F59E0B' });
+        if (inner.cost !== undefined) fields.push({ label: 'Cost / Rounds', value: String(inner.cost), color: '#8B5CF6' });
+        fields.push({ label: 'Hash', value: inner.hashValue, color: '#10B981' });
+        if (shadowFields.length > 0) {
+          const shadowLabels = ['Last Changed', 'Min Days', 'Max Days', 'Warn Days', 'Inactive Days', 'Expire Date', 'Reserved'];
+          shadowFields.forEach((f, i) => {
+            if (f) fields.push({ label: shadowLabels[i] || `Field ${i + 3}`, value: f, color: '#94A3B8' });
+          });
+        }
+        return {
+          format: 'shadow',
+          username,
+          algorithmPrefix: inner.algorithmPrefix,
+          algorithmName: inner.algorithmName,
+          salt: inner.salt,
+          hashValue: inner.hashValue,
+          cost: inner.cost,
+          shadowFields: shadowFields.some(f => f !== '') ? shadowFields : undefined,
+          parsedFields: fields,
+          rawHashPart: hashField,
+        };
+      }
+      // Non-$ prefix hash in colon-separated format
+      if (/^[0-9a-fA-F]+$/.test(hashField)) {
+        const fields: ParsedHashField[] = [
+          { label: 'Username', value: username, color: '#3B82F6' },
+          { label: 'Hash', value: hashField, color: '#10B981' },
+        ];
+        shadowFields.forEach((f, i) => {
+          if (f) fields.push({ label: `Field ${i + 2}`, value: f, color: '#94A3B8' });
+        });
+        return {
+          format: 'colon-separated',
+          username,
+          algorithmName: 'Plain hex hash',
+          hashValue: hashField,
+          shadowFields: shadowFields.some(f => f !== '') ? shadowFields : undefined,
+          parsedFields: fields,
+          rawHashPart: hashField,
+        };
+      }
+    }
+  }
+
+  // Pure $-prefix hash (no shadow wrapper)
+  if (trimmed.startsWith('$')) {
+    const inner = parseDollarHash(trimmed);
+    if (inner) {
+      const fields: ParsedHashField[] = [
+        { label: 'Algorithm', value: inner.algorithmName, color: '#06B6D4' },
+      ];
+      if (inner.salt) fields.push({ label: 'Salt', value: inner.salt, color: '#F59E0B' });
+      if (inner.cost !== undefined) fields.push({ label: 'Cost / Rounds', value: String(inner.cost), color: '#8B5CF6' });
+      fields.push({ label: 'Hash', value: inner.hashValue, color: '#10B981' });
+      return {
+        format: 'salted',
+        algorithmPrefix: inner.algorithmPrefix,
+        algorithmName: inner.algorithmName,
+        salt: inner.salt,
+        hashValue: inner.hashValue,
+        cost: inner.cost,
+        parsedFields: fields,
+        rawHashPart: trimmed,
+      };
+    }
+  }
+
+  return undefined;
 }
 
 export function identifyHash(hash: string): HashIdentification {
@@ -629,7 +789,6 @@ export function identifyHash(hash: string): HashIdentification {
   const length = trimmed.length;
   const isHex = /^[0-9a-fA-F]+$/.test(trimmed);
   const isAlphanumeric = /^[0-9a-zA-Z]+$/.test(trimmed);
-  const hasSpecialChars = /[^0-9a-zA-Z]/.test(trimmed);
   const startsWithDollar = trimmed.startsWith('$');
 
   let charset = 'unknown';
@@ -637,10 +796,46 @@ export function identifyHash(hash: string): HashIdentification {
   else if (isAlphanumeric) charset = 'alphanumeric';
   else charset = 'mixed';
 
+  // First, try to parse compound/salted hash formats (shadow, $-prefix)
+  const parsed = parseSaltedHash(trimmed);
+
   const results: HashIdentification['possibleAlgorithms'] = [];
 
-  // Prefix-based identification
-  if (startsWithDollar) {
+  // If we got a structured parse, add it as a high-confidence result
+  if (parsed) {
+    const algoMap: Record<string, { hashcatMode: string; johnFormat: string; description: string }> = {
+      'bcrypt ($2a)': { hashcatMode: '3200', johnFormat: 'bcrypt', description: 'bcrypt password hash (Blowfish-based)' },
+      'bcrypt ($2b)': { hashcatMode: '3200', johnFormat: 'bcrypt', description: 'bcrypt password hash (Blowfish-based)' },
+      'bcrypt ($2y)': { hashcatMode: '3200', johnFormat: 'bcrypt', description: 'bcrypt password hash (Blowfish-based)' },
+      'MD5 crypt (md5crypt)': { hashcatMode: '500', johnFormat: 'md5crypt', description: 'Unix MD5 crypt with salt' },
+      'SHA-256 crypt (sha256crypt)': { hashcatMode: '7400', johnFormat: 'sha256crypt', description: 'Unix SHA-256 crypt with salt' },
+      'SHA-512 crypt (sha512crypt)': { hashcatMode: '1800', johnFormat: 'sha512crypt', description: 'Unix SHA-512 crypt with salt' },
+      'Argon2 (argon2id)': { hashcatMode: 'argon2id', johnFormat: 'argon2id', description: 'Argon2id password hash' },
+      'Argon2i': { hashcatMode: 'argon2i', johnFormat: 'argon2i', description: 'Argon2i password hash' },
+      'NTLM': { hashcatMode: '1000', johnFormat: 'nt', description: 'Windows NTLM hash' },
+      'Apache MD5 (apr1)': { hashcatMode: '1600', johnFormat: 'apache', description: 'Apache apr1 MD5 password hash' },
+      'PHPass (WordPress/Drupal)': { hashcatMode: '400', johnFormat: 'phpass', description: 'PHPass portable hash' },
+    };
+    const mapped = algoMap[parsed.algorithmName];
+    if (mapped) {
+      results.push({
+        name: parsed.algorithmName,
+        confidence: 98,
+        description: mapped.description,
+        hashcatMode: mapped.hashcatMode,
+        johnFormat: mapped.johnFormat,
+      });
+    } else {
+      results.push({
+        name: parsed.algorithmName,
+        confidence: 95,
+        description: `Detected ${parsed.algorithmName} hash format`,
+      });
+    }
+  }
+
+  // Prefix-based identification (for cases where parseDollarHash didn't fully match)
+  if (startsWithDollar && !parsed) {
     if (trimmed.startsWith('$2a$') || trimmed.startsWith('$2b$') || trimmed.startsWith('$2y$')) {
       results.push({ name: 'bcrypt', confidence: 95, description: 'bcrypt password hash', hashcatMode: '3200', johnFormat: 'bcrypt' });
     }
@@ -668,10 +863,13 @@ export function identifyHash(hash: string): HashIdentification {
     if (trimmed.startsWith('$NT$')) {
       results.push({ name: 'NTLM', confidence: 90, description: 'Windows NTLM hash', hashcatMode: '1000', johnFormat: 'nt' });
     }
+    if (trimmed.startsWith('$apr1$')) {
+      results.push({ name: 'Apache MD5', confidence: 90, description: 'Apache apr1 MD5 hash', hashcatMode: '1600', johnFormat: 'apache' });
+    }
   }
 
-  // Length-based identification for hex hashes
-  if (isHex) {
+  // Length-based identification for hex hashes (only if not already parsed)
+  if (isHex && !parsed) {
     if (length === 8) {
       results.push({ name: 'CRC32', confidence: 70, description: '32-bit CRC', hashcatMode: '-', johnFormat: '-' });
     }
@@ -705,13 +903,20 @@ export function identifyHash(hash: string): HashIdentification {
     }
   }
 
-  // Sort by confidence
-  results.sort((a, b) => b.confidence - a.confidence);
+  // Dedupe by name and sort by confidence
+  const seen = new Set<string>();
+  const deduped = results.filter(r => {
+    if (seen.has(r.name)) return false;
+    seen.add(r.name);
+    return true;
+  });
+  deduped.sort((a, b) => b.confidence - a.confidence);
 
   return {
-    possibleAlgorithms: results.length > 0 ? results : [{ name: 'Unknown', confidence: 0, description: 'Could not identify the hash algorithm' }],
+    possibleAlgorithms: deduped.length > 0 ? deduped : [{ name: 'Unknown', confidence: 0, description: 'Could not identify the hash algorithm' }],
     length,
-    charset
+    charset,
+    parsedStructure: parsed,
   };
 }
 
@@ -782,7 +987,7 @@ export const ALGORITHM_LEARNING_DATA: Record<string, AlgorithmInfo> = {
     useCases: ['File checksums (non-security)', 'Data deduplication', 'Legacy system compatibility', 'Cache keys'],
     performanceNote: 'Very fast, making it unsuitable for password hashing as brute-force attacks are trivial.'
   },
-  'SHA256': {
+  'SHA-256': {
     name: 'SHA-256',
     category: 'Hash Function',
     history: 'Part of the SHA-2 family designed by the NSA and published by NIST in 2001. It is the most widely used hash function in the SHA-2 family.',

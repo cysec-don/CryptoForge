@@ -23,7 +23,6 @@ import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
 import {
   Table,
-  TableBody,
   TableCell,
   TableHead,
   TableHeader,
@@ -602,12 +601,12 @@ export function Checksums() {
                         </TableHead>
                       </TableRow>
                     </TableHeader>
-                    <TableBody>
-                      <motion.tbody
-                        variants={stagger}
-                        initial="initial"
-                        animate="animate"
-                      >
+                    <motion.tbody
+                      variants={stagger}
+                      initial="initial"
+                      animate="animate"
+                      className="[&>tr]:border-b [&>tr]:border-white/[0.04] [&>tr:last-child]:border-0"
+                    >
                         {results.map((r) => {
                           const def = ALGORITHMS.find((a) => a.id === r.id);
                           const cat = def
@@ -679,8 +678,7 @@ export function Checksums() {
                             </motion.tr>
                           );
                         })}
-                      </motion.tbody>
-                    </TableBody>
+                    </motion.tbody>
                   </Table>
                 </div>
 

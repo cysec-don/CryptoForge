@@ -134,7 +134,10 @@ export function LearningCenter() {
   }, [allAlgorithms, activeCategory, searchQuery]);
 
   const currentAlgorithm: AlgorithmInfo | null = selectedAlgorithm
-    ? ALGORITHM_LEARNING_DATA[selectedAlgorithm] ?? getDefaultAlgorithmInfo(selectedAlgorithm)
+    ? ALGORITHM_LEARNING_DATA[selectedAlgorithm]
+      ?? ALGORITHM_LEARNING_DATA[selectedAlgorithm.replace(/[-/]/g, '')]
+      ?? ALGORITHM_LEARNING_DATA[selectedAlgorithm.replace(/-/g, '')]
+      ?? getDefaultAlgorithmInfo(selectedAlgorithm)
     : null;
 
   // ── Handlers ──

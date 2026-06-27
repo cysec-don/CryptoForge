@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import {
   Settings as SettingsIcon,
@@ -11,6 +11,7 @@ import {
   Info,
   Moon,
   Sun,
+  CheckCircle2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -31,13 +32,15 @@ import { Separator } from '@/components/ui/separator';
 /* ------------------------------------------------------------------ */
 
 const HASH_ALGORITHMS = [
-  { value: 'sha-256', label: 'SHA-256' },
-  { value: 'sha-384', label: 'SHA-384' },
-  { value: 'sha-512', label: 'SHA-512' },
-  { value: 'sha-1', label: 'SHA-1' },
-  { value: 'sha3-256', label: 'SHA3-256' },
-  { value: 'sha3-512', label: 'SHA3-512' },
-  { value: 'md5', label: 'MD5' },
+  { value: 'SHA256', label: 'SHA-256' },
+  { value: 'SHA384', label: 'SHA-384' },
+  { value: 'SHA512', label: 'SHA-512' },
+  { value: 'SHA1', label: 'SHA-1' },
+  { value: 'SHA3-256', label: 'SHA3-256' },
+  { value: 'SHA3-512', label: 'SHA3-512' },
+  { value: 'BLAKE2B', label: 'BLAKE2b' },
+  { value: 'BLAKE3', label: 'BLAKE3' },
+  { value: 'MD5', label: 'MD5 (legacy)' },
 ];
 
 const ENCRYPTION_ALGORITHMS = [
@@ -45,6 +48,7 @@ const ENCRYPTION_ALGORITHMS = [
   { value: 'aes-128-gcm', label: 'AES-128-GCM' },
   { value: 'aes-256-cbc', label: 'AES-256-CBC' },
   { value: 'aes-128-cbc', label: 'AES-128-CBC' },
+  { value: 'chacha20-poly1305', label: 'ChaCha20-Poly1305' },
 ];
 
 const CLIPBOARD_TIMERS = [
@@ -54,6 +58,26 @@ const CLIPBOARD_TIMERS = [
   { value: '120', label: '2 minutes' },
   { value: 'never', label: 'Never' },
 ];
+
+const STORAGE_KEY = 'cryptoforge-settings';
+
+interface AppSettings {
+  isDark: boolean;
+  isCompact: boolean;
+  autoClearClipboard: boolean;
+  clipboardTimer: string;
+  defaultHashAlgo: string;
+  defaultEncAlgo: string;
+}
+
+const DEFAULT_SETTINGS: AppSettings = {
+  isDark: true,
+  isCompact: false,
+  autoClearClipboard: false,
+  clipboardTimer: '30',
+  defaultHashAlgo: 'SHA256',
+  defaultEncAlgo: 'aes-256-gcm',
+};
 
 /* ------------------------------------------------------------------ */
 /*  Section Wrapper                                                    */
@@ -123,13 +147,78 @@ function SettingRow({
 /* ------------------------------------------------------------------ */
 
 export function SettingsPage() {
-  const [isDark, setIsDark] = useState(true);
-  const [isCompact, setIsCompact] = useState(false);
-  const [clipboardTimer, setClipboardTimer] = useState('30');
-  const [defaultHashAlgo, setDefaultHashAlgo] = useState('sha-256');
-  const [defaultEncAlgo, setDefaultEncAlgo] = useState('aes-256-gcm');
+  // Load settings from localStorage (lazy initialization to avoid effect-based setState)
+  const [settings, setSettings] = useState<AppSettings>(() => {
+    if (typeof window === 'undefined') return DEFAULT_SETTINGS;
+    try {
+      const stored = window.localStorage.getItem(STORAGE_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored) as Partial<AppSettings>;
+        return { ...DEFAULT_SETTINGS, ...parsed };
+      }
+    } catch {
+      // ignore corrupted settings
+    }
+    return DEFAULT_SETTINGS;
+  });
   const [clearConfirm, setClearConfirm] = useState(false);
   const [exportDone, setExportDone] = useState(false);
+  const [allDataConfirm, setAllDataConfirm] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  // Apply dark mode to <html> element
+  useEffect(() => {
+    if (typeof document !== 'undefined') {
+      const root = document.documentElement;
+      if (settings.isDark) {
+        root.classList.add('dark');
+      } else {
+        root.classList.remove('dark');
+      }
+    }
+  }, [settings.isDark]);
+
+  // Apply compact mode to body
+  useEffect(() => {
+    if (typeof document !== 'undefined') {
+      const body = document.body;
+      if (settings.isCompact) {
+        body.classList.add('compact-mode');
+      } else {
+        body.classList.remove('compact-mode');
+      }
+    }
+  }, [settings.isCompact]);
+
+  // Persist settings to localStorage whenever they change
+  const updateSetting = useCallback(<K extends keyof AppSettings>(key: K, value: AppSettings[K]) => {
+    setSettings((prev) => {
+      const next = { ...prev, [key]: value };
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+        setSaved(true);
+        setTimeout(() => setSaved(false), 1500);
+      } catch {
+        // ignore storage errors
+      }
+      return next;
+    });
+  }, []);
+
+  // Auto-clear clipboard logic
+  useEffect(() => {
+    if (!settings.autoClearClipboard || settings.clipboardTimer === 'never') return;
+    const seconds = parseInt(settings.clipboardTimer, 10);
+    if (isNaN(seconds)) return;
+    const interval = setInterval(() => {
+      // Check if clipboard has content and clear it
+      // Note: browser clipboard clearing requires user gesture in some browsers
+      if (navigator.clipboard) {
+        navigator.clipboard.writeText('').catch(() => {});
+      }
+    }, seconds * 1000);
+    return () => clearInterval(interval);
+  }, [settings.autoClearClipboard, settings.clipboardTimer]);
 
   const handleClearHistory = () => {
     if (!clearConfirm) {
@@ -137,16 +226,23 @@ export function SettingsPage() {
       return;
     }
     setClearConfirm(false);
-    // In a real app, this would clear actual history
+    // Clear any history-related keys from localStorage
+    try {
+      const keys = Object.keys(localStorage).filter(k => k.includes('history') || k.includes('recent'));
+      keys.forEach(k => localStorage.removeItem(k));
+    } catch {
+      // ignore
+    }
   };
 
   const handleExportSettings = () => {
-    const settings = {
-      appearance: { darkMode: isDark, compactMode: isCompact },
-      security: { autoClearClipboard: clipboardTimer },
-      defaults: { hashAlgorithm: defaultHashAlgo, encryptionAlgorithm: defaultEncAlgo },
+    const exportData = {
+      app: 'CryptoForge',
+      version: '1.1.0',
+      exportedAt: new Date().toISOString(),
+      settings,
     };
-    const blob = new Blob([JSON.stringify(settings, null, 2)], { type: 'application/json' });
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -158,7 +254,17 @@ export function SettingsPage() {
   };
 
   const handleClearAllData = () => {
-    // In a real app, this would clear all local storage / data
+    if (!allDataConfirm) {
+      setAllDataConfirm(true);
+      return;
+    }
+    setAllDataConfirm(false);
+    try {
+      localStorage.clear();
+      setSettings(DEFAULT_SETTINGS);
+    } catch {
+      // ignore
+    }
   };
 
   return (
@@ -174,10 +280,21 @@ export function SettingsPage() {
             <SettingsIcon className="h-6 w-6 text-[#2563EB]" />
           </div>
           <h2 className="text-2xl sm:text-3xl font-bold gradient-text">Settings</h2>
+          {saved && (
+            <motion.div
+              initial={{ opacity: 0, x: -10 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0 }}
+              className="flex items-center gap-1.5 text-xs text-[#10B981]"
+            >
+              <CheckCircle2 className="h-3.5 w-3.5" />
+              Saved
+            </motion.div>
+          )}
         </div>
         <p className="text-muted-foreground leading-relaxed max-w-2xl">
-          Configure CryptoForge to match your workflow. Adjust appearance, security preferences,
-          and default algorithms.
+          Configure CryptoForge to match your workflow. Settings are persisted to your browser&apos;s local storage.
+          Adjust appearance, security preferences, and default algorithms.
         </p>
       </motion.div>
 
@@ -196,8 +313,9 @@ export function SettingsPage() {
           <div className="flex items-center gap-2">
             <Sun className="h-4 w-4 text-muted-foreground" />
             <Switch
-              checked={isDark}
-              onCheckedChange={setIsDark}
+              checked={settings.isDark}
+              onCheckedChange={(v) => updateSetting('isDark', v)}
+              aria-label="Toggle dark mode"
               className="data-[state=checked]:bg-[#2563EB]"
             />
             <Moon className="h-4 w-4 text-muted-foreground" />
@@ -212,8 +330,9 @@ export function SettingsPage() {
           description="Reduce spacing and padding for denser layouts"
         >
           <Switch
-            checked={isCompact}
-            onCheckedChange={setIsCompact}
+            checked={settings.isCompact}
+            onCheckedChange={(v) => updateSetting('isCompact', v)}
+            aria-label="Toggle compact mode"
             className="data-[state=checked]:bg-[#2563EB]"
           />
         </SettingRow>
@@ -226,24 +345,47 @@ export function SettingsPage() {
         description="Manage security and privacy settings."
         delay={0.2}
       >
-        {/* Auto-clear clipboard */}
+        {/* Auto-clear clipboard enable toggle */}
         <SettingRow
           label="Auto-Clear Clipboard"
           description="Automatically clear copied values after a timeout"
         >
-          <Select value={clipboardTimer} onValueChange={setClipboardTimer}>
-            <SelectTrigger className="w-[160px] bg-white/[0.03] border-white/10 text-sm">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {CLIPBOARD_TIMERS.map((t) => (
-                <SelectItem key={t.value} value={t.value}>
-                  {t.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <Switch
+            checked={settings.autoClearClipboard}
+            onCheckedChange={(v) => updateSetting('autoClearClipboard', v)}
+            aria-label="Enable auto-clear clipboard"
+            className="data-[state=checked]:bg-[#2563EB]"
+          />
         </SettingRow>
+
+        {settings.autoClearClipboard && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+          >
+            <SettingRow
+              label="Clear After"
+              description="How long to wait before clearing the clipboard"
+            >
+              <Select
+                value={settings.clipboardTimer}
+                onValueChange={(v) => updateSetting('clipboardTimer', v)}
+              >
+                <SelectTrigger className="w-[160px] bg-white/[0.03] border-white/10 text-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {CLIPBOARD_TIMERS.map((t) => (
+                    <SelectItem key={t.value} value={t.value}>
+                      {t.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </SettingRow>
+          </motion.div>
+        )}
 
         <Separator className="bg-white/5" />
 
@@ -290,7 +432,10 @@ export function SettingsPage() {
           label="Hash Algorithm"
           description="Default algorithm for the hashing tool"
         >
-          <Select value={defaultHashAlgo} onValueChange={setDefaultHashAlgo}>
+          <Select
+            value={settings.defaultHashAlgo}
+            onValueChange={(v) => updateSetting('defaultHashAlgo', v)}
+          >
             <SelectTrigger className="w-[200px] bg-white/[0.03] border-white/10 text-sm">
               <SelectValue />
             </SelectTrigger>
@@ -311,7 +456,10 @@ export function SettingsPage() {
           label="Encryption Algorithm"
           description="Default algorithm for the encryption tool"
         >
-          <Select value={defaultEncAlgo} onValueChange={setDefaultEncAlgo}>
+          <Select
+            value={settings.defaultEncAlgo}
+            onValueChange={(v) => updateSetting('defaultEncAlgo', v)}
+          >
             <SelectTrigger className="w-[200px] bg-white/[0.03] border-white/10 text-sm">
               <SelectValue />
             </SelectTrigger>
@@ -358,12 +506,26 @@ export function SettingsPage() {
             variant="outline"
             size="sm"
             onClick={handleClearAllData}
-            className="border-red-500/30 text-red-400 hover:bg-red-500/10 hover:border-red-500/50"
+            className={
+              allDataConfirm
+                ? 'border-red-500/50 text-red-400 hover:bg-red-500/10'
+                : 'border-red-500/30 text-red-400 hover:bg-red-500/10 hover:border-red-500/50'
+            }
           >
             <Trash2 className="h-3.5 w-3.5 mr-1.5" />
-            Clear All
+            {allDataConfirm ? 'Confirm Reset' : 'Clear All'}
           </Button>
         </SettingRow>
+        {allDataConfirm && (
+          <motion.p
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="text-xs text-red-400 -mt-2"
+          >
+            Click again to confirm. This will reset all settings to defaults.
+          </motion.p>
+        )}
       </SettingsSection>
 
       {/* ── About ── */}
@@ -377,19 +539,20 @@ export function SettingsPage() {
           <div className="rounded-lg p-4 bg-white/[0.02] border border-white/5">
             <p className="text-xs text-muted-foreground mb-1">Version</p>
             <div className="flex items-center gap-2">
-              <p className="text-lg font-semibold">1.0.0</p>
-              <Badge variant="secondary" className="bg-[#06B6D4]/10 text-[#06B6D4] border-[#06B6D4]/20 text-[10px]">
+              <p className="text-lg font-semibold">1.1.0</p>
+              <Badge variant="secondary" className="bg-[#10B981]/10 text-[#10B981] border-[#10B981]/20 text-[10px]">
                 Stable
               </Badge>
             </div>
           </div>
           <div className="rounded-lg p-4 bg-white/[0.02] border border-white/5">
             <p className="text-xs text-muted-foreground mb-1">License</p>
-            <p className="text-sm font-medium">MIT License</p>
+            <p className="text-sm font-medium">CryptoForge Attribution</p>
           </div>
           <div className="rounded-lg p-4 bg-white/[0.02] border border-white/5">
-            <p className="text-xs text-muted-foreground mb-1">Credits</p>
-            <p className="text-sm font-medium">CryptoForge Team</p>
+            <p className="text-xs text-muted-foreground mb-1">Author</p>
+            <p className="text-sm font-medium">CySec Don</p>
+            <p className="text-xs text-muted-foreground">cysecdon@gmail.com</p>
           </div>
         </div>
 
@@ -402,6 +565,12 @@ export function SettingsPage() {
           </Badge>
           <Badge variant="secondary" className="bg-white/5 text-muted-foreground">
             Web Crypto API
+          </Badge>
+          <Badge variant="secondary" className="bg-white/5 text-muted-foreground">
+            @noble/libraries
+          </Badge>
+          <Badge variant="secondary" className="bg-white/5 text-muted-foreground">
+            hash-wasm
           </Badge>
           <Badge variant="secondary" className="bg-white/5 text-muted-foreground">
             Tailwind CSS
