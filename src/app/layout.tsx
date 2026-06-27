@@ -17,7 +17,8 @@ export const metadata: Metadata = {
   description: "Generate, verify, encrypt, decrypt, and analyze cryptographic algorithms from a single platform. Enterprise-grade cryptography tools.",
   keywords: ["cryptography", "hashing", "encryption", "AES", "SHA", "RSA", "security", "crypto tools"],
   icons: {
-    icon: "/logo.svg",
+    icon: "/logo.png",
+    apple: "/logo.png",
   },
 };
 

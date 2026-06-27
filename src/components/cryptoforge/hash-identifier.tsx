@@ -18,10 +18,13 @@ const EXAMPLE_HASHES = [
   { label: '/etc/shadow (MD5)', hash: 'msfadmin:$1$XN10Zj2c$Rt/zzCW3mLtUWA.ihZjA5/:14684:0:99999:7:::', description: 'Shadow entry with MD5 crypt' },
   { label: '/etc/shadow (SHA-512)', hash: 'root:$6$xyz123$WVhqjhYYeHj0SjVXWjjJ3w4TvGCSWiBE0kOUHE1y2EWIYnSt6TkE2dJHEX3JEDfOmR9mm.sL6pXx3v/qcSfzs/:19000:0:99999:7:::', description: 'Shadow entry with SHA-512 crypt' },
   { label: '/etc/shadow (SHA-256)', hash: 'admin:$5$rounds=5000$saltsalt$Wjlq5eYwVfC5Rz5eYwVfC5Rz5eYwVfC5Rz5eYwVfC5:18000:0:99999:7:::', description: 'Shadow entry with SHA-256 crypt' },
+  { label: '/etc/shadow (yescrypt)', hash: 'cysec:$y$j9T$3f1efVlCmXd7zFk9kslbg/$u09MyAVPlBq1TeDa9EAn67HdACs7L43xsNGOV9OJKv1:20625:0:99999:7:::', description: 'Shadow entry with yescrypt (Ubuntu 22.04+ default)' },
+  { label: '/etc/shadow (gost-yescrypt)', hash: 'user:$gy$j9T$3f1efVlCmXd7zFk9kslbg/$u09MyAVPlBq1TeDa9EAn67HdACs7L43xsNGOV9OJKv1:19000:0:99999:7:::', description: 'Shadow entry with gost-yescrypt' },
   { label: 'Argon2id', hash: '$argon2id$v=19$m=65536,t=3,p=4$c29tZXNhbHQ$RdescudvJCsgt3ub+b+dWRWJTmaaJObG', description: 'Argon2id hash with 64MB memory' },
   { label: 'Apache MD5 (apr1)', hash: '$apr1$saltsalt$somehashvaluehere123456', description: 'Apache apr1 MD5 password hash' },
   { label: 'PHPass (WordPress)', hash: '$P$BjhE4PfDJyimkFb0wR06R3f9gD7qR1/', description: 'PHPass hash used by WordPress' },
   { label: 'DES crypt (descrypt)', hash: 'rEK1ecacw.7.c', description: 'Traditional Unix DES crypt (13 chars)' },
+  { label: 'scrypt (crypt)', hash: '$7$A6x3./eLOE1.$n3C3k3j3k3j3k3j3k3j3k3j3k3j3k3j3k3j3k3j3k3j3k3j3k3j3', description: 'scrypt password hash (crypt format)' },
 ];
 
 // ====== HELPERS ======

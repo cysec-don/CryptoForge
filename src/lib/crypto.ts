@@ -693,6 +693,31 @@ function parseDollarHash(hash: string): { algorithmPrefix: string; algorithmName
   if (phpassMatch) {
     return { algorithmPrefix: hash.substring(0, 4), algorithmName: 'PHPass (WordPress/Drupal)', salt: hash.substring(4, 12), hashValue: hash.substring(12), cost: hash.charCodeAt(3) - 48 };
   }
+  // yescrypt: $y$<cost>$<salt>$<hash>
+  const yescryptMatch = hash.match(/^\$y\$([^$]+)\$([^$]+)\$(.+)$/);
+  if (yescryptMatch) {
+    return { algorithmPrefix: '$y$', algorithmName: 'yescrypt', salt: yescryptMatch[2], hashValue: yescryptMatch[3] };
+  }
+  // gost-yescrypt: $gy$<cost>$<salt>$<hash>
+  const gostYescryptMatch = hash.match(/^\$gy\$([^$]+)\$([^$]+)\$(.+)$/);
+  if (gostYescryptMatch) {
+    return { algorithmPrefix: '$gy$', algorithmName: 'gost-yescrypt', salt: gostYescryptMatch[2], hashValue: gostYescryptMatch[3] };
+  }
+  // scrypt (crypt format): $7$<N><r><p>$<salt>$<hash>
+  const scryptCryptMatch = hash.match(/^\$7\$([A-Za-z0-9/]+)\$([^$]+)\$(.+)$/);
+  if (scryptCryptMatch) {
+    return { algorithmPrefix: '$7$', algorithmName: 'scrypt (crypt)', salt: scryptCryptMatch[2], hashValue: scryptCryptMatch[3] };
+  }
+  // SunMD5: $md5$<params>$<hash>
+  const sunmd5Match = hash.match(/^\$md5\$(?:rounds=(\d+)\$)?(.+)$/);
+  if (sunmd5Match) {
+    return { algorithmPrefix: '$md5$', algorithmName: 'SunMD5', hashValue: sunmd5Match[2], cost: sunmd5Match[1] ? parseInt(sunmd5Match[1], 10) : undefined };
+  }
+  // bcrypt variants: $2$ (original), $2x$, $2y$ (some PHP implementations)
+  const bcrypt2Match = hash.match(/^\$(2[x])\$(\d{2})\$([.\/A-Za-z0-9]{53})$/);
+  if (bcrypt2Match) {
+    return { algorithmPrefix: `$${bcrypt2Match[1]}$${bcrypt2Match[2]}$`, algorithmName: `bcrypt ($${bcrypt2Match[1]})`, hashValue: bcrypt2Match[3].substring(22), salt: bcrypt2Match[3].substring(0, 22), cost: parseInt(bcrypt2Match[2], 10) };
+  }
   return undefined;
 }
 
@@ -807,6 +832,7 @@ export function identifyHash(hash: string): HashIdentification {
       'bcrypt ($2a)': { hashcatMode: '3200', johnFormat: 'bcrypt', description: 'bcrypt password hash (Blowfish-based)' },
       'bcrypt ($2b)': { hashcatMode: '3200', johnFormat: 'bcrypt', description: 'bcrypt password hash (Blowfish-based)' },
       'bcrypt ($2y)': { hashcatMode: '3200', johnFormat: 'bcrypt', description: 'bcrypt password hash (Blowfish-based)' },
+      'bcrypt ($2x)': { hashcatMode: '3200', johnFormat: 'bcrypt', description: 'bcrypt password hash ($2x variant)' },
       'MD5 crypt (md5crypt)': { hashcatMode: '500', johnFormat: 'md5crypt', description: 'Unix MD5 crypt with salt' },
       'SHA-256 crypt (sha256crypt)': { hashcatMode: '7400', johnFormat: 'sha256crypt', description: 'Unix SHA-256 crypt with salt' },
       'SHA-512 crypt (sha512crypt)': { hashcatMode: '1800', johnFormat: 'sha512crypt', description: 'Unix SHA-512 crypt with salt' },
@@ -815,6 +841,10 @@ export function identifyHash(hash: string): HashIdentification {
       'NTLM': { hashcatMode: '1000', johnFormat: 'nt', description: 'Windows NTLM hash' },
       'Apache MD5 (apr1)': { hashcatMode: '1600', johnFormat: 'apache', description: 'Apache apr1 MD5 password hash' },
       'PHPass (WordPress/Drupal)': { hashcatMode: '400', johnFormat: 'phpass', description: 'PHPass portable hash' },
+      'yescrypt': { hashcatMode: '29200', johnFormat: 'yescrypt', description: 'yescrypt password hash (modern Linux default, e.g. Ubuntu 22.04+)' },
+      'gost-yescrypt': { hashcatMode: '29300', johnFormat: 'gost-yescrypt', description: 'gost-yescrypt password hash (Russian standard)' },
+      'scrypt (crypt)': { hashcatMode: '8900', johnFormat: 'scrypt', description: 'scrypt password hash (crypt(3) format)' },
+      'SunMD5': { hashcatMode: '3300', johnFormat: 'sunmd5', description: 'SunMD5 password hash (Solaris)' },
     };
     const mapped = algoMap[parsed.algorithmName];
     if (mapped) {
@@ -865,6 +895,21 @@ export function identifyHash(hash: string): HashIdentification {
     }
     if (trimmed.startsWith('$apr1$')) {
       results.push({ name: 'Apache MD5', confidence: 90, description: 'Apache apr1 MD5 hash', hashcatMode: '1600', johnFormat: 'apache' });
+    }
+    if (trimmed.startsWith('$y$')) {
+      results.push({ name: 'yescrypt', confidence: 95, description: 'yescrypt password hash (modern Linux default)', hashcatMode: '29200', johnFormat: 'yescrypt' });
+    }
+    if (trimmed.startsWith('$gy$')) {
+      results.push({ name: 'gost-yescrypt', confidence: 95, description: 'gost-yescrypt password hash', hashcatMode: '29300', johnFormat: 'gost-yescrypt' });
+    }
+    if (trimmed.startsWith('$7$')) {
+      results.push({ name: 'scrypt (crypt)', confidence: 90, description: 'scrypt password hash (crypt format)', hashcatMode: '8900', johnFormat: 'scrypt' });
+    }
+    if (trimmed.startsWith('$md5$')) {
+      results.push({ name: 'SunMD5', confidence: 90, description: 'SunMD5 password hash (Solaris)', hashcatMode: '3300', johnFormat: 'sunmd5' });
+    }
+    if (trimmed.startsWith('$P$') || trimmed.startsWith('$H$')) {
+      results.push({ name: 'PHPass', confidence: 90, description: 'PHPass portable hash (WordPress/Drupal)', hashcatMode: '400', johnFormat: 'phpass' });
     }
   }
 

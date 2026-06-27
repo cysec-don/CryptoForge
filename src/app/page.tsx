@@ -119,8 +119,8 @@ export default function Home() {
               className="flex items-center gap-3 overflow-hidden"
               animate={{ opacity: 1 }}
             >
-              <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-gradient-to-br from-[#2563EB]/20 to-[#06B6D4]/20 border border-white/[0.08] shrink-0">
-                <Shield className="w-5 h-5 text-[#3B82F6]" />
+              <div className="flex items-center justify-center w-9 h-9 rounded-xl overflow-hidden bg-gradient-to-br from-[#2563EB]/20 to-[#06B6D4]/20 border border-white/[0.08] shrink-0">
+                <img src="/logo.png" alt="CryptoForge" className="w-full h-full object-cover" />
               </div>
               <AnimatePresence>
                 {sidebarOpen && (
@@ -288,8 +288,8 @@ export default function Home() {
             >
               <div className="flex items-center h-16 px-4 border-b border-white/[0.06]">
                 <div className="flex items-center gap-3">
-                  <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-gradient-to-br from-[#2563EB]/20 to-[#06B6D4]/20 border border-white/[0.08]">
-                    <Shield className="w-5 h-5 text-[#3B82F6]" />
+                  <div className="flex items-center justify-center w-9 h-9 rounded-xl overflow-hidden bg-gradient-to-br from-[#2563EB]/20 to-[#06B6D4]/20 border border-white/[0.08]">
+                    <img src="/logo.png" alt="CryptoForge" className="w-full h-full object-cover" />
                   </div>
                   <span className="text-base font-bold gradient-text">CryptoForge</span>
                 </div>
@@ -351,6 +351,7 @@ export default function Home() {
 
             {/* Breadcrumb */}
             <div className="flex items-center gap-2 text-sm">
+              <img src="/logo.png" alt="CryptoForge" className="w-6 h-6 rounded object-cover" />
               <span className="text-muted-foreground">CryptoForge</span>
               <span className="text-muted-foreground/40">/</span>
               <span className="text-foreground font-medium">{currentItem?.label}</span>

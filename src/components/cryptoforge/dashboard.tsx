@@ -286,6 +286,20 @@ export function Dashboard({ onNavigate }: DashboardProps) {
               </span>
             </motion.div>
 
+            {/* Logo */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.6, delay: 0.05 }}
+              className="mb-8"
+            >
+              <img
+                src="/logo.png"
+                alt="CryptoForge Logo"
+                className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl object-cover shadow-2xl shadow-[#2563EB]/20 border border-white/10"
+              />
+            </motion.div>
+
             {/* Headline */}
             <motion.h1
               initial={{ opacity: 0, y: 20 }}
@@ -707,7 +721,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
       <footer className="border-t border-white/5 py-8">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
-            <Shield className="h-5 w-5 text-[#2563EB]" />
+            <img src="/logo.png" alt="CryptoForge" className="h-6 w-6 rounded object-cover" />
             <span className="font-semibold text-foreground">CryptoForge</span>
           </div>
           <p className="text-sm text-muted-foreground">

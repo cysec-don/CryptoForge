@@ -273,6 +273,23 @@ assert(bcryptResult.parsedStructure?.cost === 12, 'bcrypt cost extracted', '12',
 const shadowSha512 = identifyHash('root:$6$xyz123$WVhqjhYYeHj0SjVXWjjJ3w4TvGCSWiBE0kOUHE1y2EWIYnSt6TkE2dJHEX3JEDfOmR9mm.sL6pXx3v/qcSfzs/:19000:0:99999:7:::');
 assert(shadowSha512.parsedStructure?.algorithmName === 'SHA-512 crypt (sha512crypt)', 'Shadow SHA-512 algorithm identified', 'SHA-512 crypt (sha512crypt)', shadowSha512.parsedStructure?.algorithmName);
 
+// yescrypt shadow entry (the user's specific test case!)
+const yescryptResult = identifyHash('cysec:$y$j9T$3f1efVlCmXd7zFk9kslbg/$u09MyAVPlBq1TeDa9EAn67HdACs7L43xsNGOV9OJKv1:20625:0:99999:7:::');
+assert(yescryptResult.parsedStructure?.format === 'shadow', 'yescrypt shadow format detected', 'shadow', yescryptResult.parsedStructure?.format);
+assert(yescryptResult.parsedStructure?.username === 'cysec', 'yescrypt username extracted', 'cysec', yescryptResult.parsedStructure?.username);
+assert(yescryptResult.parsedStructure?.algorithmName === 'yescrypt', 'yescrypt algorithm identified', 'yescrypt', yescryptResult.parsedStructure?.algorithmName);
+assert(yescryptResult.parsedStructure?.salt === '3f1efVlCmXd7zFk9kslbg/', 'yescrypt salt extracted', '3f1efVlCmXd7zFk9kslbg/', yescryptResult.parsedStructure?.salt);
+assert(yescryptResult.possibleAlgorithms[0]?.name === 'yescrypt', 'yescrypt best match', 'yescrypt', yescryptResult.possibleAlgorithms[0]?.name);
+assert(yescryptResult.possibleAlgorithms[0]?.hashcatMode === '29200', 'yescrypt hashcat mode', '29200', yescryptResult.possibleAlgorithms[0]?.hashcatMode);
+
+// gost-yescrypt shadow entry
+const gostYescryptResult = identifyHash('user:$gy$j9T$3f1efVlCmXd7zFk9kslbg/$u09MyAVPlBq1TeDa9EAn67HdACs7L43xsNGOV9OJKv1:19000:0:99999:7:::');
+assert(gostYescryptResult.parsedStructure?.algorithmName === 'gost-yescrypt', 'gost-yescrypt algorithm identified', 'gost-yescrypt', gostYescryptResult.parsedStructure?.algorithmName);
+
+// scrypt (crypt format)
+const scryptCryptResult = identifyHash('$7$A6x3./eLOE1.$n3C3k3j3k3j3k3j3k3j3k3j3k3j3k3j3k3j3k3j3k3j3k3j3k3j3');
+assert(scryptCryptResult.possibleAlgorithms[0]?.name === 'scrypt (crypt)', 'scrypt crypt format identified', 'scrypt (crypt)', scryptCryptResult.possibleAlgorithms[0]?.name);
+
 console.log('\n📦 Asymmetric Cryptography Tests:');
 
 // Ed25519 — sign and verify round-trip
