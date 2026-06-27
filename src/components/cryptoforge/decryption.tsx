@@ -8,12 +8,21 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { encryptAES, decryptAES, generateRandomBytes } from '@/lib/crypto';
+import { encryptAES, decryptAES, generateRandomBytes,
+  encryptAesCtr, decryptAesCtr,
+  encryptChaCha20Poly1305, decryptChaCha20Poly1305,
+  encryptXChaCha20Poly1305, decryptXChaCha20Poly1305,
+  encryptSalsa20, decryptSalsa20,
+  encrypt3DES, decrypt3DES,
+  encryptDES, decryptDES,
+  encryptRC4, decryptRC4,
+  encryptRabbit, decryptRabbit,
+} from '@/lib/crypto';
 
 interface AlgorithmOption {
   id: string;
   name: string;
-  mode: 'AES-GCM' | 'AES-CBC' | null;
+  mode: 'AES-GCM' | 'AES-CBC' | 'AES-CTR' | 'ChaCha20-Poly1305' | 'XChaCha20-Poly1305' | 'Salsa20' | '3DES' | 'DES' | 'RC4' | 'Rabbit' | null;
   keySize: number;
   supported: boolean;
   badge?: string;
@@ -24,11 +33,14 @@ const ALGORITHMS: AlgorithmOption[] = [
   { id: 'aes-256-gcm', name: 'AES-256-GCM', mode: 'AES-GCM', keySize: 256, supported: true },
   { id: 'aes-128-cbc', name: 'AES-128-CBC', mode: 'AES-CBC', keySize: 128, supported: true },
   { id: 'aes-256-cbc', name: 'AES-256-CBC', mode: 'AES-CBC', keySize: 256, supported: true },
-  { id: 'chacha20', name: 'ChaCha20-Poly1305', mode: null, keySize: 256, supported: false, badge: 'Coming Soon' },
-  { id: 'rsa-oaep', name: 'RSA-OAEP', mode: null, keySize: 2048, supported: false, badge: 'Coming Soon' },
-  { id: '3des', name: '3DES', mode: null, keySize: 168, supported: false, badge: 'Coming Soon' },
-  { id: 'blowfish', name: 'Blowfish', mode: null, keySize: 128, supported: false, badge: 'Coming Soon' },
-  { id: 'camellia', name: 'Camellia', mode: null, keySize: 256, supported: false, badge: 'Coming Soon' },
+  { id: 'aes-256-ctr', name: 'AES-256-CTR', mode: 'AES-CTR', keySize: 256, supported: true },
+  { id: 'chacha20-poly1305', name: 'ChaCha20-Poly1305', mode: 'ChaCha20-Poly1305', keySize: 256, supported: true },
+  { id: 'xchacha20-poly1305', name: 'XChaCha20-Poly1305', mode: 'XChaCha20-Poly1305', keySize: 256, supported: true },
+  { id: 'salsa20', name: 'Salsa20', mode: 'Salsa20', keySize: 256, supported: true },
+  { id: '3des', name: '3DES (Triple DES)', mode: '3DES', keySize: 192, supported: true },
+  { id: 'des', name: 'DES (Legacy)', mode: 'DES', keySize: 64, supported: true },
+  { id: 'rc4', name: 'RC4 (Legacy)', mode: 'RC4', keySize: 256, supported: true },
+  { id: 'rabbit', name: 'Rabbit', mode: 'Rabbit', keySize: 128, supported: true },
 ];
 
 function detectFormat(ciphertext: string): { format: string; confidence: number } {
@@ -92,8 +104,47 @@ export function Decryption() {
     setIntegrityCheck(null);
 
     try {
-      const result = await decryptAES(ciphertext, key, currentAlgo.mode);
-      if (result.startsWith('Error:')) {
+      let result: string;
+
+      switch (currentAlgo.id) {
+        case 'aes-128-gcm':
+        case 'aes-256-gcm':
+          result = await decryptAES(ciphertext, key, 'AES-GCM');
+          break;
+        case 'aes-128-cbc':
+        case 'aes-256-cbc':
+          result = await decryptAES(ciphertext, key, 'AES-CBC');
+          break;
+        case 'aes-256-ctr':
+          result = await decryptAesCtr(ciphertext, key);
+          break;
+        case 'chacha20-poly1305':
+          result = await decryptChaCha20Poly1305(ciphertext, key);
+          break;
+        case 'xchacha20-poly1305':
+          result = await decryptXChaCha20Poly1305(ciphertext, key);
+          break;
+        case 'salsa20':
+          result = await decryptSalsa20(ciphertext, key);
+          break;
+        case '3des':
+          result = decrypt3DES(ciphertext, key);
+          break;
+        case 'des':
+          result = decryptDES(ciphertext, key);
+          break;
+        case 'rc4':
+          result = decryptRC4(ciphertext, key);
+          break;
+        case 'rabbit':
+          result = decryptRabbit(ciphertext, key);
+          break;
+        default:
+          setError('Selected algorithm is not yet supported');
+          return;
+      }
+
+      if (typeof result === 'string' && result.startsWith('Error:')) {
         setError(result.replace('Error: ', ''));
         setIntegrityCheck('failure');
       } else {
@@ -163,7 +214,7 @@ export function Decryption() {
             <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Select Algorithm</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-9 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
               {ALGORITHMS.map((algo) => (
                 <motion.button
                   key={algo.id}

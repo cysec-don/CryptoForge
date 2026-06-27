@@ -13,6 +13,7 @@ import {
   Code2,
   Copy,
   Check,
+  FileSignature,
   ArrowRight,
   Zap,
   Shield,
@@ -152,6 +153,13 @@ const features = [
     description: 'Generate cryptographically secure random keys and passphrases for your applications.',
     page: 'keygen',
     color: '#8B5CF6',
+  },
+  {
+    icon: FileSignature,
+    title: 'Asymmetric Cryptography',
+    description: 'Sign, verify, encrypt, and decrypt with Ed25519, X25519, ECDSA, and RSA key pairs.',
+    page: 'asymmetric',
+    color: '#06B6D4',
   },
   {
     icon: GraduationCap,

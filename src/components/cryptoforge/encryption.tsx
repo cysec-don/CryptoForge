@@ -8,12 +8,21 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { encryptAES, decryptAES, generateRandomBytes } from '@/lib/crypto';
+import { encryptAES, decryptAES, generateRandomBytes,
+  encryptAesCtr, decryptAesCtr,
+  encryptChaCha20Poly1305, decryptChaCha20Poly1305,
+  encryptXChaCha20Poly1305, decryptXChaCha20Poly1305,
+  encryptSalsa20, decryptSalsa20,
+  encrypt3DES, decrypt3DES,
+  encryptDES, decryptDES,
+  encryptRC4, decryptRC4,
+  encryptRabbit, decryptRabbit,
+} from '@/lib/crypto';
 
 interface AlgorithmOption {
   id: string;
   name: string;
-  mode: 'AES-GCM' | 'AES-CBC' | null;
+  mode: 'AES-GCM' | 'AES-CBC' | 'AES-CTR' | 'ChaCha20-Poly1305' | 'XChaCha20-Poly1305' | 'Salsa20' | '3DES' | 'DES' | 'RC4' | 'Rabbit' | null;
   keySize: number;
   supported: boolean;
   badge?: string;
@@ -24,11 +33,14 @@ const ALGORITHMS: AlgorithmOption[] = [
   { id: 'aes-256-gcm', name: 'AES-256-GCM', mode: 'AES-GCM', keySize: 256, supported: true },
   { id: 'aes-128-cbc', name: 'AES-128-CBC', mode: 'AES-CBC', keySize: 128, supported: true },
   { id: 'aes-256-cbc', name: 'AES-256-CBC', mode: 'AES-CBC', keySize: 256, supported: true },
-  { id: 'chacha20', name: 'ChaCha20-Poly1305', mode: null, keySize: 256, supported: false, badge: 'Coming Soon' },
-  { id: 'rsa-oaep', name: 'RSA-OAEP', mode: null, keySize: 2048, supported: false, badge: 'Coming Soon' },
-  { id: '3des', name: '3DES', mode: null, keySize: 168, supported: false, badge: 'Coming Soon' },
-  { id: 'blowfish', name: 'Blowfish', mode: null, keySize: 128, supported: false, badge: 'Coming Soon' },
-  { id: 'camellia', name: 'Camellia', mode: null, keySize: 256, supported: false, badge: 'Coming Soon' },
+  { id: 'aes-256-ctr', name: 'AES-256-CTR', mode: 'AES-CTR', keySize: 256, supported: true },
+  { id: 'chacha20-poly1305', name: 'ChaCha20-Poly1305', mode: 'ChaCha20-Poly1305', keySize: 256, supported: true },
+  { id: 'xchacha20-poly1305', name: 'XChaCha20-Poly1305', mode: 'XChaCha20-Poly1305', keySize: 256, supported: true },
+  { id: 'salsa20', name: 'Salsa20', mode: 'Salsa20', keySize: 256, supported: true },
+  { id: '3des', name: '3DES (Triple DES)', mode: '3DES', keySize: 192, supported: true },
+  { id: 'des', name: 'DES (Legacy)', mode: 'DES', keySize: 64, supported: true },
+  { id: 'rc4', name: 'RC4 (Legacy)', mode: 'RC4', keySize: 256, supported: true },
+  { id: 'rabbit', name: 'Rabbit', mode: 'Rabbit', keySize: 128, supported: true },
 ];
 
 export function Encryption() {
@@ -36,7 +48,7 @@ export function Encryption() {
   const [inputMode, setInputMode] = useState<'text' | 'file'>('text');
   const [plaintext, setPlaintext] = useState('');
   const [key, setKey] = useState('');
-  const [keySize, setKeySize] = useState<'128' | '192' | '256'>('256');
+  const [keySize, setKeySize] = useState<'64' | '128' | '192' | '256'>('256');
   const [iv, setIv] = useState('');
   const [encryptedResult, setEncryptedResult] = useState('');
   const [isEncrypting, setIsEncrypting] = useState(false);
@@ -52,10 +64,16 @@ export function Encryption() {
     const bytesCount = parseInt(keySize) / 8;
     const newKey = generateRandomBytes(bytesCount);
     setKey(newKey);
-    const newIv = currentAlgo?.mode === 'AES-GCM'
-      ? generateRandomBytes(12)
-      : generateRandomBytes(16);
-    setIv(newIv);
+    // Only generate a display IV for AES modes (those routed through encryptAES);
+    // other algorithms auto-generate their own nonces internally.
+    if (currentAlgo?.mode === 'AES-GCM' || currentAlgo?.mode === 'AES-CBC') {
+      const newIv = currentAlgo.mode === 'AES-GCM'
+        ? generateRandomBytes(12)
+        : generateRandomBytes(16);
+      setIv(newIv);
+    } else {
+      setIv('');
+    }
   }, [keySize, currentAlgo]);
 
   const handleEncrypt = useCallback(async () => {
@@ -78,8 +96,47 @@ export function Encryption() {
 
     try {
       const input = inputMode === 'file' ? fileContent : plaintext;
-      const result = await encryptAES(input, key, currentAlgo.mode);
-      if (result.startsWith('Error:')) {
+      let result: string;
+
+      switch (currentAlgo.id) {
+        case 'aes-128-gcm':
+        case 'aes-256-gcm':
+          result = await encryptAES(input, key, 'AES-GCM');
+          break;
+        case 'aes-128-cbc':
+        case 'aes-256-cbc':
+          result = await encryptAES(input, key, 'AES-CBC');
+          break;
+        case 'aes-256-ctr':
+          result = await encryptAesCtr(input, key);
+          break;
+        case 'chacha20-poly1305':
+          result = await encryptChaCha20Poly1305(input, key);
+          break;
+        case 'xchacha20-poly1305':
+          result = await encryptXChaCha20Poly1305(input, key);
+          break;
+        case 'salsa20':
+          result = await encryptSalsa20(input, key);
+          break;
+        case '3des':
+          result = encrypt3DES(input, key);
+          break;
+        case 'des':
+          result = encryptDES(input, key);
+          break;
+        case 'rc4':
+          result = encryptRC4(input, key);
+          break;
+        case 'rabbit':
+          result = encryptRabbit(input, key);
+          break;
+        default:
+          setError('Selected algorithm is not yet supported');
+          return;
+      }
+
+      if (typeof result === 'string' && result.startsWith('Error:')) {
         setError(result);
       } else {
         setEncryptedResult(result);
@@ -155,7 +212,7 @@ export function Encryption() {
             <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Select Algorithm</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-9 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
               {ALGORITHMS.map((algo) => (
                 <motion.button
                   key={algo.id}
@@ -164,9 +221,10 @@ export function Encryption() {
                   onClick={() => {
                     if (algo.supported) {
                       setSelectedAlgo(algo.id);
-                      setKeySize(String(algo.keySize) as '128' | '192' | '256');
+                      setKeySize(String(algo.keySize) as '64' | '128' | '192' | '256');
                       setEncryptedResult('');
                       setError('');
+                      setIv('');
                     }
                   }}
                   disabled={!algo.supported}
@@ -334,11 +392,12 @@ export function Encryption() {
               {/* Key Size */}
               <div className="space-y-2">
                 <label className="text-xs font-medium text-muted-foreground">Key Size</label>
-                <Select value={keySize} onValueChange={(v) => setKeySize(v as '128' | '192' | '256')}>
+                <Select value={keySize} onValueChange={(v) => setKeySize(v as '64' | '128' | '192' | '256')}>
                   <SelectTrigger className="bg-white/[0.03] border-white/[0.08] focus:border-cf-blue/40 text-foreground">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent className="bg-[#1a1a2e] border-white/[0.08]">
+                    <SelectItem value="64">64-bit</SelectItem>
                     <SelectItem value="128">128-bit</SelectItem>
                     <SelectItem value="192">192-bit</SelectItem>
                     <SelectItem value="256">256-bit</SelectItem>
@@ -349,7 +408,7 @@ export function Encryption() {
               {/* IV / Nonce */}
               <div className="space-y-2">
                 <label className="text-xs font-medium text-muted-foreground flex items-center justify-between">
-                  <span>{currentAlgo?.mode === 'AES-GCM' ? 'IV (Nonce)' : 'IV'}</span>
+                  <span>{currentAlgo?.mode === 'AES-GCM' ? 'IV (Nonce)' : currentAlgo?.mode === 'AES-CBC' ? 'IV' : 'Nonce'}</span>
                   {iv && (
                     <button
                       onClick={() => copyToClipboard(iv, 'iv')}

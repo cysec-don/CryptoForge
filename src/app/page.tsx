@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Shield, Hash, Lock, Unlock, Code2, Search, KeyRound,
   GraduationCap, BookOpen, Settings, LayoutDashboard,
-  Menu, X, ChevronLeft, Zap, Globe, Sparkles
+  Menu, X, ChevronLeft, Zap, Globe, Sparkles, FileSignature, GitBranch, CheckSquare
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -20,11 +20,14 @@ import { Encoding } from '@/components/cryptoforge/encoding';
 import { HMACModule } from '@/components/cryptoforge/hmac';
 import { PasswordHashing } from '@/components/cryptoforge/password-hashing';
 import { KeyGeneration } from '@/components/cryptoforge/key-generation';
+import { AsymmetricCrypto } from '@/components/cryptoforge/asymmetric';
+import { KDF } from '@/components/cryptoforge/kdf';
+import { Checksums } from '@/components/cryptoforge/checksums';
 import { LearningCenter } from '@/components/cryptoforge/learning-center';
 import { APIDocs } from '@/components/cryptoforge/api-docs';
 import { SettingsPage } from '@/components/cryptoforge/settings';
 
-type PageId = 'dashboard' | 'hashing' | 'hash-identifier' | 'encryption' | 'decryption' | 'encoding' | 'hmac' | 'password-hashing' | 'key-generation' | 'learning' | 'api-docs' | 'settings';
+type PageId = 'dashboard' | 'hashing' | 'hash-identifier' | 'encryption' | 'decryption' | 'encoding' | 'hmac' | 'password-hashing' | 'key-generation' | 'asymmetric' | 'kdf' | 'checksums' | 'learning' | 'api-docs' | 'settings';
 
 interface NavItem {
   id: PageId;
@@ -44,6 +47,9 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'hmac', label: 'HMAC', icon: <Shield className="w-4 h-4" />, description: 'Generate & verify HMACs', section: 'crypto' },
   { id: 'password-hashing', label: 'Password Hashing', icon: <KeyRound className="w-4 h-4" />, description: 'Secure password hashing', section: 'crypto' },
   { id: 'key-generation', label: 'Key Generation', icon: <Sparkles className="w-4 h-4" />, description: 'Generate cryptographic keys', section: 'crypto' },
+  { id: 'asymmetric', label: 'Asymmetric Crypto', icon: <FileSignature className="w-4 h-4" />, description: 'Ed25519, X25519, ECDSA, RSA', section: 'crypto' },
+  { id: 'kdf', label: 'Key Derivation', icon: <GitBranch className="w-4 h-4" />, description: 'HKDF, PBKDF2, scrypt, X9.63', section: 'crypto' },
+  { id: 'checksums', label: 'Checksums', icon: <CheckSquare className="w-4 h-4" />, description: 'CRC, FNV, MurmurHash, xxHash', section: 'crypto' },
   { id: 'learning', label: 'Learning Center', icon: <GraduationCap className="w-4 h-4" />, description: 'Learn about cryptography', section: 'resources' },
   { id: 'api-docs', label: 'API Docs', icon: <BookOpen className="w-4 h-4" />, description: 'REST API reference', section: 'resources' },
   { id: 'settings', label: 'Settings', icon: <Settings className="w-4 h-4" />, description: 'App preferences', section: 'bottom' },
@@ -77,6 +83,9 @@ export default function Home() {
       case 'hmac': return <HMACModule />;
       case 'password-hashing': return <PasswordHashing />;
       case 'key-generation': return <KeyGeneration />;
+      case 'asymmetric': return <AsymmetricCrypto />;
+      case 'kdf': return <KDF />;
+      case 'checksums': return <Checksums />;
       case 'learning': return <LearningCenter />;
       case 'api-docs': return <APIDocs />;
       case 'settings': return <SettingsPage />;

@@ -29,12 +29,23 @@ import CryptoJS from 'crypto-js';
 import {
   generateRandomBytes,
   assessPasswordStrength,
+  hashArgon2id,
+  hashArgon2i,
+  hashArgon2d,
+  hashScrypt,
   type PasswordStrength,
 } from '@/lib/crypto';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type PasswordHashAlgorithm = 'bcrypt' | 'pbkdf2-sha256' | 'pbkdf2-sha512' | 'argon2id';
+type PasswordHashAlgorithm =
+  | 'bcrypt'
+  | 'pbkdf2-sha256'
+  | 'pbkdf2-sha512'
+  | 'argon2id'
+  | 'argon2i'
+  | 'argon2d'
+  | 'scrypt';
 
 interface AlgorithmConfig {
   id: PasswordHashAlgorithm;
@@ -77,8 +88,25 @@ const ALGORITHMS: AlgorithmConfig[] = [
     id: 'argon2id',
     name: 'Argon2id',
     description: 'Memory-hard key derivation',
-    supported: false,
-    badge: 'Coming Soon',
+    supported: true,
+  },
+  {
+    id: 'argon2i',
+    name: 'Argon2i',
+    description: 'Side-channel resistant variant',
+    supported: true,
+  },
+  {
+    id: 'argon2d',
+    name: 'Argon2d',
+    description: 'GPU-resistant variant',
+    supported: true,
+  },
+  {
+    id: 'scrypt',
+    name: 'scrypt',
+    description: 'Memory-hard key derivation',
+    supported: true,
   },
 ];
 
@@ -167,6 +195,16 @@ export function PasswordHashing() {
   const [bcryptCost, setBcryptCost] = useState(12);
   const [pbkdf2Iterations, setPbkdf2Iterations] = useState(100000);
 
+  // Argon2 parameters
+  const [argon2Memory, setArgon2Memory] = useState(65536);
+  const [argon2Iterations, setArgon2Iterations] = useState(3);
+  const [argon2Parallelism, setArgon2Parallelism] = useState(4);
+
+  // scrypt parameters
+  const [scryptN, setScryptN] = useState(32768);
+  const [scryptR, setScryptR] = useState(8);
+  const [scryptP, setScryptP] = useState(1);
+
   // Password state
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -214,15 +252,24 @@ export function PasswordHashing() {
       return;
     }
 
-    const activeSalt = useCustomSalt ? customSalt : salt;
-    if (!activeSalt) {
-      setError('Please generate or enter a salt');
-      return;
-    }
-
     const currentAlgo = ALGORITHMS.find((a) => a.id === selectedAlgo);
     if (!currentAlgo?.supported) {
       setError('Selected algorithm is not yet supported');
+      return;
+    }
+
+    const isArgon2Variant =
+      selectedAlgo === 'argon2id' ||
+      selectedAlgo === 'argon2i' ||
+      selectedAlgo === 'argon2d';
+    const requiresExplicitSalt =
+      selectedAlgo === 'bcrypt' ||
+      selectedAlgo === 'pbkdf2-sha256' ||
+      selectedAlgo === 'pbkdf2-sha512';
+
+    let activeSalt = useCustomSalt ? customSalt : salt;
+    if (requiresExplicitSalt && !activeSalt) {
+      setError('Please generate or enter a salt');
       return;
     }
 
@@ -232,41 +279,109 @@ export function PasswordHashing() {
 
     // Use setTimeout to allow UI to update before heavy computation
     setTimeout(() => {
-      try {
-        let hash: string;
-        let cost: number;
+      (async () => {
+        try {
+          let hash: string;
+          let cost: number;
 
-        switch (selectedAlgo) {
-          case 'bcrypt':
-            cost = bcryptCost;
-            hash = hashBcrypt(password, activeSalt, bcryptCost);
-            break;
-          case 'pbkdf2-sha256':
-            cost = pbkdf2Iterations;
-            hash = hashPBKDF2SHA256(password, activeSalt, pbkdf2Iterations);
-            break;
-          case 'pbkdf2-sha512':
-            cost = pbkdf2Iterations;
-            hash = hashPBKDF2SHA512(password, activeSalt, pbkdf2Iterations);
-            break;
-          default:
-            throw new Error('Unsupported algorithm');
+          // For Argon2 / scrypt, auto-generate a 16-byte hex salt if none provided
+          if (!activeSalt && (isArgon2Variant || selectedAlgo === 'scrypt')) {
+            activeSalt = generateRandomBytes(16);
+            if (!useCustomSalt) {
+              setSalt(activeSalt);
+            }
+          }
+
+          switch (selectedAlgo) {
+            case 'bcrypt':
+              cost = bcryptCost;
+              hash = hashBcrypt(password, activeSalt, bcryptCost);
+              break;
+            case 'pbkdf2-sha256':
+              cost = pbkdf2Iterations;
+              hash = hashPBKDF2SHA256(password, activeSalt, pbkdf2Iterations);
+              break;
+            case 'pbkdf2-sha512':
+              cost = pbkdf2Iterations;
+              hash = hashPBKDF2SHA512(password, activeSalt, pbkdf2Iterations);
+              break;
+            case 'argon2id': {
+              hash = await hashArgon2id({
+                password,
+                salt: activeSalt,
+                memorySize: argon2Memory,
+                iterations: argon2Iterations,
+                parallelism: argon2Parallelism,
+              });
+              cost = argon2Iterations;
+              break;
+            }
+            case 'argon2i': {
+              hash = await hashArgon2i({
+                password,
+                salt: activeSalt,
+                memorySize: argon2Memory,
+                iterations: argon2Iterations,
+                parallelism: argon2Parallelism,
+              });
+              cost = argon2Iterations;
+              break;
+            }
+            case 'argon2d': {
+              hash = await hashArgon2d({
+                password,
+                salt: activeSalt,
+                memorySize: argon2Memory,
+                iterations: argon2Iterations,
+                parallelism: argon2Parallelism,
+              });
+              cost = argon2Iterations;
+              break;
+            }
+            case 'scrypt': {
+              hash = await hashScrypt({
+                password,
+                salt: activeSalt,
+                N: scryptN,
+                r: scryptR,
+                p: scryptP,
+              });
+              cost = scryptN;
+              break;
+            }
+            default:
+              throw new Error('Unsupported algorithm');
+          }
+
+          setHashResult({
+            hash,
+            algorithm: currentAlgo.name,
+            cost,
+            salt: activeSalt || '',
+            timestamp: new Date(),
+          });
+        } catch (e) {
+          setError(e instanceof Error ? e.message : 'Hash generation failed');
+        } finally {
+          setIsGenerating(false);
         }
-
-        setHashResult({
-          hash,
-          algorithm: currentAlgo.name,
-          cost,
-          salt: activeSalt,
-          timestamp: new Date(),
-        });
-      } catch (e) {
-        setError(e instanceof Error ? e.message : 'Hash generation failed');
-      } finally {
-        setIsGenerating(false);
-      }
+      })();
     }, 50);
-  }, [password, salt, customSalt, useCustomSalt, selectedAlgo, bcryptCost, pbkdf2Iterations]);
+  }, [
+    password,
+    salt,
+    customSalt,
+    useCustomSalt,
+    selectedAlgo,
+    bcryptCost,
+    pbkdf2Iterations,
+    argon2Memory,
+    argon2Iterations,
+    argon2Parallelism,
+    scryptN,
+    scryptR,
+    scryptP,
+  ]);
 
   const handleVerify = useCallback(() => {
     if (!verifyPassword.trim()) {
@@ -466,7 +581,13 @@ export function PasswordHashing() {
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-2">
                 <Shield className="w-4 h-4" />
-                {selectedAlgo === 'bcrypt' ? 'Cost Factor' : 'Iterations'}
+                {selectedAlgo === 'bcrypt'
+                  ? 'Cost Factor'
+                  : selectedAlgo === 'pbkdf2-sha256' || selectedAlgo === 'pbkdf2-sha512'
+                    ? 'Iterations'
+                    : selectedAlgo === 'scrypt'
+                      ? 'scrypt Parameters'
+                      : 'Argon2 Parameters'}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -548,10 +669,186 @@ export function PasswordHashing() {
                 </div>
               )}
 
-              {selectedAlgo === 'argon2id' && (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <AlertTriangle className="w-4 h-4 text-cf-amber" />
-                  Argon2id support is coming soon. Please select another algorithm.
+              {(selectedAlgo === 'argon2id' ||
+                selectedAlgo === 'argon2i' ||
+                selectedAlgo === 'argon2d') && (
+                <div className="space-y-4">
+                  {/* Memory Cost */}
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs text-muted-foreground">
+                        Memory Cost (KiB)
+                      </Label>
+                      <Badge
+                        variant="outline"
+                        className="bg-cf-blue/10 text-cf-blue border-cf-blue/20 text-xs font-mono"
+                      >
+                        {argon2Memory.toLocaleString()} KiB
+                      </Badge>
+                    </div>
+                    <Slider
+                      value={[Math.log2(argon2Memory)]}
+                      onValueChange={(v) =>
+                        setArgon2Memory(Math.round(Math.pow(2, v[0])))
+                      }
+                      min={12}
+                      max={18}
+                      step={1}
+                      className="w-full"
+                    />
+                    <div className="flex justify-between text-[10px] text-muted-foreground/60">
+                      <span>4,096</span>
+                      <span>65,536 (default)</span>
+                      <span>262,144</span>
+                    </div>
+                  </div>
+
+                  {/* Iterations */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs text-muted-foreground">Iterations</Label>
+                      <Badge
+                        variant="outline"
+                        className="bg-cf-blue/10 text-cf-blue border-cf-blue/20 text-xs font-mono"
+                      >
+                        {argon2Iterations}
+                      </Badge>
+                    </div>
+                    <Input
+                      type="number"
+                      min={1}
+                      max={10}
+                      value={argon2Iterations}
+                      onChange={(e) => {
+                        const v = parseInt(e.target.value, 10);
+                        if (!Number.isNaN(v))
+                          setArgon2Iterations(Math.min(10, Math.max(1, v)));
+                      }}
+                      className="bg-white/[0.03] border-white/[0.08] focus:border-cf-blue/40 focus:ring-cf-blue/20 text-foreground font-mono text-sm h-9"
+                    />
+                  </div>
+
+                  {/* Parallelism */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs text-muted-foreground">Parallelism</Label>
+                      <Badge
+                        variant="outline"
+                        className="bg-cf-blue/10 text-cf-blue border-cf-blue/20 text-xs font-mono"
+                      >
+                        {argon2Parallelism}
+                      </Badge>
+                    </div>
+                    <Input
+                      type="number"
+                      min={1}
+                      max={8}
+                      value={argon2Parallelism}
+                      onChange={(e) => {
+                        const v = parseInt(e.target.value, 10);
+                        if (!Number.isNaN(v))
+                          setArgon2Parallelism(Math.min(8, Math.max(1, v)));
+                      }}
+                      className="bg-white/[0.03] border-white/[0.08] focus:border-cf-blue/40 focus:ring-cf-blue/20 text-foreground font-mono text-sm h-9"
+                    />
+                  </div>
+
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground bg-white/[0.02] border border-white/[0.06] rounded-lg p-2.5">
+                    <Info className="w-3.5 h-3.5 text-cf-cyan shrink-0" />
+                    <span>
+                      m={argon2Memory.toLocaleString()}, t={argon2Iterations}, p=
+                      {argon2Parallelism}.{' '}
+                      {argon2Memory < 16384
+                        ? 'Consider increasing memory for better security.'
+                        : argon2Iterations < 3
+                          ? 'Consider increasing iterations for better security.'
+                          : 'Good balance of memory-hardness and performance.'}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {selectedAlgo === 'scrypt' && (
+                <div className="space-y-4">
+                  {/* N (cost factor) */}
+                  <div className="space-y-2">
+                    <Label className="text-xs text-muted-foreground">Cost Factor (N)</Label>
+                    <div className="flex flex-wrap gap-2">
+                      {[16384, 32768, 65536, 131072, 262144].map((n) => (
+                        <button
+                          key={n}
+                          onClick={() => setScryptN(n)}
+                          className={`
+                            px-3 py-1.5 rounded-lg text-xs font-mono transition-all
+                            ${
+                              scryptN === n
+                                ? 'bg-cf-blue/15 border border-cf-blue/30 text-cf-blue'
+                                : 'bg-white/[0.03] border border-white/[0.06] text-muted-foreground hover:bg-white/[0.06] hover:text-foreground'
+                            }
+                          `}
+                        >
+                          {n.toLocaleString()}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* r (block size) */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs text-muted-foreground">Block Size (r)</Label>
+                      <Badge
+                        variant="outline"
+                        className="bg-cf-blue/10 text-cf-blue border-cf-blue/20 text-xs font-mono"
+                      >
+                        {scryptR}
+                      </Badge>
+                    </div>
+                    <Input
+                      type="number"
+                      min={1}
+                      value={scryptR}
+                      onChange={(e) => {
+                        const v = parseInt(e.target.value, 10);
+                        if (!Number.isNaN(v) && v >= 1) setScryptR(v);
+                      }}
+                      className="bg-white/[0.03] border-white/[0.08] focus:border-cf-blue/40 focus:ring-cf-blue/20 text-foreground font-mono text-sm h-9"
+                    />
+                  </div>
+
+                  {/* p (parallelism) */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs text-muted-foreground">Parallelism (p)</Label>
+                      <Badge
+                        variant="outline"
+                        className="bg-cf-blue/10 text-cf-blue border-cf-blue/20 text-xs font-mono"
+                      >
+                        {scryptP}
+                      </Badge>
+                    </div>
+                    <Input
+                      type="number"
+                      min={1}
+                      value={scryptP}
+                      onChange={(e) => {
+                        const v = parseInt(e.target.value, 10);
+                        if (!Number.isNaN(v) && v >= 1) setScryptP(v);
+                      }}
+                      className="bg-white/[0.03] border-white/[0.08] focus:border-cf-blue/40 focus:ring-cf-blue/20 text-foreground font-mono text-sm h-9"
+                    />
+                  </div>
+
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground bg-white/[0.02] border border-white/[0.06] rounded-lg p-2.5">
+                    <Info className="w-3.5 h-3.5 text-cf-cyan shrink-0" />
+                    <span>
+                      N={scryptN.toLocaleString()}, r={scryptR}, p={scryptP}. Memory ≈{' '}
+                      {((128 * scryptN * scryptR * scryptP) / 1024 / 1024).toFixed(1)} MB.{' '}
+                      {scryptN < 32768
+                        ? 'Consider increasing N for better security.'
+                        : 'Good balance of memory-hardness and performance.'}
+                    </span>
+                  </div>
                 </div>
               )}
             </CardContent>
@@ -752,8 +1049,10 @@ export function PasswordHashing() {
             isGenerating ||
             !currentAlgo?.supported ||
             !password.trim() ||
-            (!useCustomSalt && !salt) ||
-            (useCustomSalt && !customSalt.trim())
+            ((selectedAlgo === 'bcrypt' ||
+              selectedAlgo === 'pbkdf2-sha256' ||
+              selectedAlgo === 'pbkdf2-sha512') &&
+              ((!useCustomSalt && !salt) || (useCustomSalt && !customSalt.trim())))
           }
           className="w-full h-12 bg-cf-blue hover:bg-cf-blue/90 text-white font-semibold text-sm rounded-xl shadow-lg shadow-cf-blue/20 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
         >
@@ -842,7 +1141,11 @@ export function PasswordHashing() {
                   </div>
                   <div className="bg-white/[0.02] border border-white/[0.06] rounded-lg p-3">
                     <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">
-                      {selectedAlgo === 'bcrypt' ? 'Cost Factor' : 'Iterations'}
+                      {selectedAlgo === 'bcrypt'
+                        ? 'Cost Factor'
+                        : selectedAlgo === 'scrypt'
+                          ? 'Cost (N)'
+                          : 'Iterations'}
                     </p>
                     <p className="text-xs font-semibold text-foreground">
                       {hashResult.cost.toLocaleString()}
@@ -890,7 +1193,12 @@ export function PasswordHashing() {
                       <span>
                         {selectedAlgo === 'bcrypt'
                           ? 'A bcrypt cost factor of 12+ is recommended for production use.'
-                          : 'At least 100,000 iterations is recommended for PBKDF2 in production.'}
+                          : selectedAlgo === 'pbkdf2-sha256' ||
+                              selectedAlgo === 'pbkdf2-sha512'
+                            ? 'At least 100,000 iterations is recommended for PBKDF2 in production.'
+                            : selectedAlgo === 'scrypt'
+                              ? 'An N of 32768+ with r=8, p=1 is recommended for scrypt in production.'
+                              : 'Argon2id with 64MB+ memory, t=3+, p=4+ is recommended for production.'}
                       </span>
                     </li>
                     <li className="flex items-start gap-2">

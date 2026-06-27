@@ -13,7 +13,18 @@ import {
   encodeBase58, decodeBase58, encodeHex, decodeHex,
   encodeBinary, decodeBinary, encodeURL, decodeURL,
   encodeHTML, decodeHTML, encodeUnicode, decodeUnicode,
-  parseJWT
+  parseJWT,
+  // New encodings:
+  encodeBase16, decodeBase16,
+  encodeBase36, decodeBase36,
+  encodeBase45, decodeBase45,
+  encodeBase62, decodeBase62,
+  encodeBase64URL, decodeBase64URL,
+  encodeBase85, decodeBase85,
+  encodeZ85,
+  encodeMorse, decodeMorse,
+  encodeOctal, decodeOctal,
+  encodeDecimal, decodeDecimal,
 } from '@/lib/crypto';
 
 type Mode = 'encode' | 'decode';
@@ -24,6 +35,7 @@ interface EncodingFormat {
   icon: typeof Code2;
   description: string;
   decodeOnly?: boolean;
+  encodeOnly?: boolean;
 }
 
 const FORMATS: EncodingFormat[] = [
@@ -36,6 +48,16 @@ const FORMATS: EncodingFormat[] = [
   { id: 'html', name: 'HTML Encoding', icon: Code2, description: 'HTML entity encoding for special characters' },
   { id: 'unicode', name: 'Unicode Escape', icon: Code2, description: 'Unicode code point escape sequences (\\uXXXX)' },
   { id: 'jwt', name: 'JWT Parse', icon: FileJson, description: 'Decode JSON Web Token structure (header.payload.signature)', decodeOnly: true },
+  { id: 'base16', name: 'Base16', icon: Code2, description: 'Binary-to-text encoding using 16-character alphabet (0-9, A-F). Same as hex but explicit Base16 form' },
+  { id: 'base36', name: 'Base36', icon: Code2, description: 'Encoding using 36-character alphabet (0-9, A-Z). Compact numeric-to-text representation' },
+  { id: 'base45', name: 'Base45', icon: Code2, description: 'Compact encoding used in EU Digital COVID Certificates, using 45-character alphabet' },
+  { id: 'base62', name: 'Base62', icon: Code2, description: 'Encoding using 62-character alphabet (0-9, A-Z, a-z). URL-safe and unambiguous' },
+  { id: 'base64url', name: 'Base64URL', icon: Code2, description: 'URL-safe Base64 variant using - and _ instead of + and /, with no padding' },
+  { id: 'base85', name: 'Base85', icon: Code2, description: 'High-density encoding using 85-character alphabet (Ascii85/Z85 variants). Packs 4 bytes into 5 chars' },
+  { id: 'z85', name: 'Z85', icon: Code2, description: 'ZeroMQ Base85 variant using a specific 85-character alphabet. Encode-only (no decode available)', encodeOnly: true },
+  { id: 'morse', name: 'Morse Code', icon: Code2, description: 'Classic telegraphy encoding using dots (.) and dashes (-) separated by spaces. Supports A-Z, 0-9' },
+  { id: 'octal', name: 'Octal', icon: Code2, description: 'Base-8 numeric representation of character codes, space-separated' },
+  { id: 'decimal', name: 'Decimal', icon: Code2, description: 'Base-10 numeric representation of character codes, space-separated' },
 ];
 
 export function Encoding() {
@@ -85,6 +107,16 @@ export function Encoding() {
                 case 'url': result = encodeURL(input); break;
                 case 'html': result = encodeHTML(input); break;
                 case 'unicode': result = encodeUnicode(input); break;
+                case 'base16': result = encodeBase16(input); break;
+                case 'base36': result = encodeBase36(input); break;
+                case 'base45': result = encodeBase45(input); break;
+                case 'base62': result = encodeBase62(input); break;
+                case 'base64url': result = encodeBase64URL(input); break;
+                case 'base85': result = encodeBase85(input); break;
+                case 'z85': result = encodeZ85(input); break;
+                case 'morse': result = encodeMorse(input); break;
+                case 'octal': result = encodeOctal(input); break;
+                case 'decimal': result = encodeDecimal(input); break;
                 default: result = 'Error: Unknown format';
               }
             } else {
@@ -97,6 +129,15 @@ export function Encoding() {
                 case 'url': result = decodeURL(input); break;
                 case 'html': result = decodeHTML(input); break;
                 case 'unicode': result = decodeUnicode(input); break;
+                case 'base16': result = decodeBase16(input); break;
+                case 'base36': result = decodeBase36(input); break;
+                case 'base45': result = decodeBase45(input); break;
+                case 'base62': result = decodeBase62(input); break;
+                case 'base64url': result = decodeBase64URL(input); break;
+                case 'base85': result = decodeBase85(input); break;
+                case 'morse': result = decodeMorse(input); break;
+                case 'octal': result = decodeOctal(input); break;
+                case 'decimal': result = decodeDecimal(input); break;
                 default: result = 'Error: Unknown format';
               }
             }
@@ -154,6 +195,10 @@ export function Encoding() {
     if (newMode === 'encode' && currentFormat?.decodeOnly) {
       setSelectedFormat('base64');
     }
+    // If switching to decode and current format is encode-only, switch to base64
+    if (newMode === 'decode' && currentFormat?.encodeOnly) {
+      setSelectedFormat('base64');
+    }
   }, [currentFormat]);
 
   const handleFormatChange = useCallback((formatId: string) => {
@@ -161,6 +206,10 @@ export function Encoding() {
     if (format?.decodeOnly && mode === 'encode') {
       // Auto-switch to decode mode for decode-only formats
       setMode('decode');
+    }
+    if (format?.encodeOnly && mode === 'decode') {
+      // Auto-switch to encode mode for encode-only formats
+      setMode('encode');
     }
     setSelectedFormat(formatId);
     setOutput('');
@@ -240,7 +289,7 @@ export function Encoding() {
           <CardContent>
             <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-9 gap-2">
               {FORMATS.map((format) => {
-                const isDisabled = format.decodeOnly && mode === 'encode';
+                const isDisabled = (format.decodeOnly && mode === 'encode') || (format.encodeOnly && mode === 'decode');
                 const isSelected = selectedFormat === format.id;
                 return (
                   <motion.button
@@ -266,6 +315,11 @@ export function Encoding() {
                     {format.decodeOnly && (
                       <Badge variant="secondary" className="text-[9px] px-1.5 py-0 h-4 bg-cf-cyan/10 text-cf-cyan border-cf-cyan/20">
                         Decode
+                      </Badge>
+                    )}
+                    {format.encodeOnly && (
+                      <Badge variant="secondary" className="text-[9px] px-1.5 py-0 h-4 bg-cf-blue/10 text-cf-blue border-cf-blue/20">
+                        Encode
                       </Badge>
                     )}
                     {isSelected && !isDisabled && (
